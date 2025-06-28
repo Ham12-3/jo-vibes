@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { Mood } from '@/generated/prisma'
 import { createTRPCRouter, publicProcedure, protectedProcedure } from '../innit'
+import { inngest } from '@/inngest/client'
 
 export const vibeRouter = createTRPCRouter({
   // Get public vibes with pagination
@@ -90,8 +91,9 @@ export const vibeRouter = createTRPCRouter({
       tags: z.array(z.string()).default([]),
       isPublic: z.boolean().default(true),
     }))
-    .mutation(({ ctx, input }) => {
-      return ctx.db.vibe.create({
+    .mutation(async ({ ctx, input }) => {
+      // 1. Create the vibe in the database
+      const vibe = await ctx.db.vibe.create({
         data: {
           ...input,
           authorId: ctx.user.id,
@@ -105,5 +107,45 @@ export const vibeRouter = createTRPCRouter({
           }
         }
       })
+
+      // 2. Emit event for background processing
+      await inngest.send({
+        name: 'vibe/created',
+        data: {
+          vibeId: vibe.id,
+          authorId: ctx.user.id,
+          mood: vibe.mood,
+          title: vibe.title,
+          isPublic: vibe.isPublic,
+        },
+      })
+
+      return vibe
+    }),
+
+  // Test background job (protected) - for development/testing
+  testBackgroundJob: protectedProcedure
+    .input(z.object({
+      testData: z.string().optional().default('Test from tRPC'),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // Test the background job system without creating a real vibe
+      await inngest.send({
+        name: 'vibe/created',
+        data: {
+          vibeId: 'test-vibe-id',
+          authorId: ctx.user.id,
+          mood: 'HAPPY' as Mood,
+          title: `Test Background Job: ${input.testData}`,
+          isPublic: true,
+        },
+      })
+
+      return {
+        success: true,
+        message: 'Background job triggered successfully',
+        testData: input.testData,
+        timestamp: new Date().toISOString(),
+      }
     }),
 }) 
