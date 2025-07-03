@@ -8,6 +8,7 @@
 - [Local Development Setup](vibe-ui/docs/setup-local.md)
 - [Backend Migration to Go (plan)](vibe-ui/docs/migrate-backend-go.md)
 - [Go Backend Scaffold](backend-go/README.md)
+- [Go backend dev guide](vibe-ui/docs/go-dev.md)
 
 ## Quickstart
 
