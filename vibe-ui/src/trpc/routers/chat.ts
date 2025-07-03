@@ -1,14 +1,6 @@
 import { z } from "zod";
-import { protectedProcedure } from "../helpers";
-import { createTRPCRouter } from "../trpc";
-
-// NOTE: Replace with your ORM or DB access logic as needed.
-const db = {
-  chatMessage: {
-    create: async ({ data }: any) => data,
-    findMany: async ({ where, orderBy }: any) => [],
-  },
-};
+import { protectedProcedure, createTRPCRouter } from "../innit";
+import { db } from "@/lib/db";
 
 export const chatRouter = createTRPCRouter({
   addMessage: protectedProcedure
