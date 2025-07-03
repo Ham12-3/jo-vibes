@@ -25,9 +25,11 @@ model User {
   updatedAt DateTime @updatedAt
 
   // Relations
-  vibes    Vibe[]
-  comments Comment[]
-  likes    Like[]
+  vibes         Vibe[]
+  comments      Comment[]
+  likes         Like[]
+  projects      Project[]
+  chatMessages  ChatMessage[]
 
   @@map("users")
 }
@@ -96,4 +98,37 @@ enum Mood {
   MYSTERIOUS
   UPBEAT
   CHILL
+}
+
+// --- Lovable-like additions ---
+
+model Project {
+  id                String        @id @default(cuid())
+  name              String
+  description       String?
+  repoUrl           String        // GitHub repository URL
+  supabaseProjectId String?       // Supabase project ID
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  ownerId           String
+  owner             User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  chatMessages      ChatMessage[]
+
+  @@map("projects")
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  role      String   // "user" | "assistant"
+  content   String
+  createdAt DateTime @default(now())
+
+  // Relations
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  authorId  String?
+  author    User?    @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("chat_messages")
 }
