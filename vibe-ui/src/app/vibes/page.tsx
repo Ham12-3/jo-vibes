@@ -1,9 +1,15 @@
-// Copied from previous feed logic in /page.tsx
+import Link from 'next/link'
 
-// If there are imports in the original file, copy them as-is or adjust paths as required
-// For demonstration, assume the main feed component is called Feed and imported from "@/components/feed"
-
-import Feed from '@/components/feed' // Adjust as per original
 export default function VibesFeedPage() {
-  return <Feed />
+  return (
+    <main className="min-h-screen flex flex-col items-center justify-center text-center bg-background">
+      <h1 className="text-5xl font-extrabold mb-6 text-primary">Build Something Lovable</h1>
+      <p className="text-lg text-gray-600 mb-8 max-w-xl">
+        Chat with AI to generate full-stack apps in seconds. Sign in to get started!
+      </p>
+      <Link href="/auth/signin" className="px-6 py-3 bg-primary text-white rounded-lg font-semibold hover:opacity-90 transition">
+        Sign In
+      </Link>
+    </main>
+  )
 }
