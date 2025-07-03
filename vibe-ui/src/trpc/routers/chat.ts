@@ -18,7 +18,7 @@ export const chatRouter = createTRPCRouter({
           projectId: input.projectId,
           role: input.role,
           content: input.content,
-          userId: ctx.user.id,
+          authorId: ctx.user ? ctx.user.id : undefined,
         },
       });
     }),

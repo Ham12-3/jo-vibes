@@ -18,6 +18,8 @@ export default {
           foreground: '#FFFFFF',
         },
         background: '#F8F9FC',
+        muted: '#1f2937',
+        'muted-foreground': '#9ca3af',
       },
       fontFamily: {
         sans: ['var(--font-geist)', ...defaultTheme.fontFamily.sans],
