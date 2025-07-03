@@ -27,6 +27,7 @@ export const vibeRouter = createTRPCRouter({
       })
     }),
 
+
   // Get vibes by mood
   getByMood: publicProcedure
     .input(z.object({
