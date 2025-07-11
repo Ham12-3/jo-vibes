@@ -1,14 +1,13 @@
 'use client'
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { createTRPCClient, loggerLink, unstable_httpBatchStreamLink } from '@trpc/client'
-import { createTRPCContext } from '@trpc/tanstack-react-query'
+import { createTRPCReact, loggerLink, unstable_httpBatchStreamLink } from '@trpc/react-query'
 import { useState } from 'react'
 
 import type { AppRouter } from './root'
 
-// Create the tRPC context
-export const { TRPCProvider, useTRPC } = createTRPCContext<AppRouter>()
+// Create the tRPC React hooks
+export const api = createTRPCReact<AppRouter>()
 
 function getBaseUrl() {
   if (typeof window !== 'undefined') return '' // Browser: use relative URL
@@ -29,7 +28,7 @@ export function TRPCReactProvider(props: { children: React.ReactNode }) {
   }))
 
   const [trpcClient] = useState(() =>
-    createTRPCClient<AppRouter>({
+    api.createClient({
       links: [
         loggerLink({
           enabled: (op) =>
@@ -45,9 +44,9 @@ export function TRPCReactProvider(props: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
+      <api.Provider client={trpcClient} queryClient={queryClient}>
         {props.children}
-      </TRPCProvider>
+      </api.Provider>
     </QueryClientProvider>
   )
 }

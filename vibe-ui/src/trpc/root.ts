@@ -1,5 +1,6 @@
 import { createTRPCRouter } from './innit'
 import { userRouter } from './routers/user'
+import { projectRouter } from './routers/project'
 import { vibeRouter } from './routers/vibe'
 import { likeRouter } from './routers/like'
 import { commentRouter } from './routers/comment'
@@ -11,6 +12,7 @@ import { commentRouter } from './routers/comment'
  */
 export const appRouter = createTRPCRouter({
   user: userRouter,
+  project: projectRouter,
   vibe: vibeRouter,
   like: likeRouter,
   comment: commentRouter,

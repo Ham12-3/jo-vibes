@@ -25,75 +25,187 @@ model User {
   updatedAt DateTime @updatedAt
 
   // Relations
-  vibes    Vibe[]
-  comments Comment[]
-  likes    Like[]
+  projects      Project[]
+  chatSessions  ChatSession[]
+  messages      Message[]
+  deployments   Deployment[]
 
   @@map("users")
 }
 
-model Vibe {
-  id          String   @id @default(cuid())
-  title       String
+model Project {
+  id          String      @id @default(cuid())
+  name        String
   description String?
-  mood        Mood
-  color       String?  // Hex color for the vibe
-  tags        String[] // Array of tags
-  isPublic    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  status      ProjectStatus @default(DRAFT)
+  template    String?     // Template used to create project
+  isPublic    Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
-  // Relations
-  authorId String
-  author   User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  // AI Generation Data
+  initialPrompt String?   // Original user description
+  screenshots   String[]  // URLs to uploaded screenshots
   
-  comments Comment[]
-  likes    Like[]
+  // Project Configuration
+  framework     String?   // Next.js, React, Vue, etc.
+  styling       String?   // Tailwind, CSS, etc.
+  database      String?   // PostgreSQL, MySQL, etc.
+  
+  // Relations
+  userId        String
+  user          User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  files         ProjectFile[]
+  chatSessions  ChatSession[]
+  deployments   Deployment[]
+  sandboxes     Sandbox[]
 
-  @@map("vibes")
+  @@map("projects")
 }
 
-model Comment {
+model ProjectFile {
   id        String   @id @default(cuid())
-  content   String
+  filename  String
+  path      String
+  content   String   @db.Text
+  language  String?  // js, ts, tsx, css, etc.
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
-  authorId String
-  author   User @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  
-  vibeId String
-  vibe   Vibe @relation(fields: [vibeId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  @@map("comments")
+  @@unique([projectId, path])
+  @@map("project_files")
 }
 
-model Like {
+model ChatSession {
   id        String   @id @default(cuid())
+  title     String?
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
-  userId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  vibeId String
-  vibe   Vibe @relation(fields: [vibeId], references: [id], onDelete: Cascade)
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  messages  Message[]
 
-  // Ensure a user can only like a vibe once
-  @@unique([userId, vibeId])
-  @@map("likes")
+  @@map("chat_sessions")
 }
 
-enum Mood {
-  HAPPY
-  SAD
-  EXCITED
-  CALM
-  ENERGETIC
-  ROMANTIC
-  NOSTALGIC
-  MYSTERIOUS
-  UPBEAT
-  CHILL
+model Message {
+  id        String      @id @default(cuid())
+  content   String      @db.Text
+  role      MessageRole
+  metadata  Json?       // Store additional data like function calls, images, etc.
+  createdAt DateTime    @default(now())
+
+  // Relations
+  userId        String
+  user          User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  chatSessionId String
+  chatSession   ChatSession @relation(fields: [chatSessionId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+model Sandbox {
+  id          String        @id @default(cuid())
+  e2bId       String?       // E2B sandbox ID
+  status      SandboxStatus @default(CREATING)
+  type        SandboxType   @default(NODE)
+  port        Int?          // Port for preview
+  url         String?       // Preview URL
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  expiresAt   DateTime?     // When sandbox expires
+
+  // Relations
+  projectId   String
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("sandboxes")
+}
+
+model Deployment {
+  id          String           @id @default(cuid())
+  url         String?          // Deployed URL
+  status      DeploymentStatus @default(PENDING)
+  provider    String?          // Vercel, Netlify, etc.
+  buildLog    String?          @db.Text
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  // Relations
+  userId      String
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  projectId   String
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("deployments")
+}
+
+model AgentMemory {
+  id        String   @id @default(cuid())
+  key       String   // Memory key/identifier
+  value     Json     // Memory data
+  context   String?  // Context where memory was created
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([key])
+  @@map("agent_memory")
+}
+
+model WebScrapingCache {
+  id        String   @id @default(cuid())
+  url       String   @unique
+  content   Json     // Scraped content (HTML, styles, images, etc.)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("web_scraping_cache")
+}
+
+enum ProjectStatus {
+  DRAFT
+  BUILDING
+  READY
+  DEPLOYED
+  ERROR
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+  FUNCTION
+}
+
+enum SandboxStatus {
+  CREATING
+  RUNNING
+  STOPPED
+  ERROR
+}
+
+enum SandboxType {
+  NODE
+  PYTHON
+  DOCKER
+}
+
+enum DeploymentStatus {
+  PENDING
+  BUILDING
+  SUCCESS
+  FAILED
 }
