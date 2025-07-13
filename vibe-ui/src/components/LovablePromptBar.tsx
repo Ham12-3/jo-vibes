@@ -1,6 +1,6 @@
 "use client"
 import { useRef, useState, useEffect } from 'react'
-import { ArrowUp, Paperclip, Plus, Loader2, CheckCircle, Sparkles, Zap } from 'lucide-react'
+import { Loader2, Sparkles, Zap } from 'lucide-react'
 import { api } from '@/trpc/client'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -11,9 +11,11 @@ export function LovablePromptBar() {
   const [prompt, setPrompt] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [justSubmitted, setJustSubmitted] = useState(false);
-  const [createSandbox, setCreateSandbox] = useState(false);
   const [processingStage, setProcessingStage] = useState<"analyzing" | "generating" | "creating" | "deploying" | "complete">("analyzing");
   const [isMac, setIsMac] = useState(false);
+
+  // Clean, inspiring placeholder
+  const placeholderText = "Describe your app idea... (e.g., 'Create a modern task management app with drag-and-drop boards and real-time collaboration')";
 
   // Detect platform after component mounts
   useEffect(() => {
@@ -75,19 +77,10 @@ export function LovablePromptBar() {
     }
   });
 
-  const handleInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
-    const target = e.currentTarget;
-    setPrompt(target.value);
-    target.style.height = 'auto';
-    target.style.height = `${target.scrollHeight}px`;
-  };
-
-  const handleBarClick = () => {
-    textareaRef.current?.focus();
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
     
     if (!prompt.trim()) {
       toast.error('Please describe what you want to build');
@@ -104,147 +97,84 @@ export function LovablePromptBar() {
     // Simulate stage progression
     setTimeout(() => setProcessingStage("generating"), 1000);
     setTimeout(() => setProcessingStage("creating"), 2000);
-    if (createSandbox) {
-      setTimeout(() => setProcessingStage("deploying"), 3000);
-    }
+    setTimeout(() => setProcessingStage("deploying"), 3000);
     
     createProject.mutate({
       prompt: prompt.trim(),
-      createSandbox: createSandbox,
+      createSandbox: true,
     });
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-      handleSubmit(e);
-    }
-  };
-
   return (
-    <div className="w-full max-w-3xl mx-auto">
-      {/* AI Processing Indicator */}
-      {isSubmitting && (
-        <div className="mb-4">
-          <AIProcessingIndicator 
-            stage={processingStage} 
-            message={createSandbox ? "Setting up live preview environment..." : "Analyzing your request and generating files..."}
-          />
+    <div className="relative w-full max-w-4xl mx-auto">
+      {/* Clean, elegant prompt input */}
+      <div className="relative bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-2xl">
+        <div className="relative">
+          {/* Gradient accent */}
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 via-blue-500 to-pink-500" />
+          
+          {/* Main textarea */}
+          <div className="relative p-6">
+            <div className="flex items-center space-x-2 mb-4">
+              <Sparkles className="h-5 w-5 text-purple-600" />
+              <span className="text-lg font-semibold text-gray-900">Create with AI</span>
+            </div>
+            
+            <textarea
+              ref={textareaRef}
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder={placeholderText}
+              className="w-full h-24 resize-none border-none outline-none text-gray-800 placeholder-gray-400 text-base leading-relaxed bg-transparent"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  handleSubmit();
+                }
+              }}
+            />
+          </div>
+          
+          {/* Clean bottom bar */}
+          <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-t border-gray-100">
+            <div className="flex items-center space-x-3 text-sm text-gray-500">
+              <kbd className="px-2 py-1 bg-white rounded border text-xs font-mono">
+                {isMac ? '⌘' : 'Ctrl'} + Enter
+              </kbd>
+              <span>to create</span>
+            </div>
+            
+            <button
+              onClick={handleSubmit}
+              disabled={!prompt.trim() || isSubmitting}
+              className={`flex items-center space-x-2 px-6 py-3 rounded-xl font-semibold transition-all duration-200 ${
+                !prompt.trim() || isSubmitting
+                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5'
+              }`}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Creating...</span>
+                </>
+              ) : (
+                <>
+                  <Zap className="h-4 w-4" />
+                  <span>Build App</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Processing indicator */}
+      {(isSubmitting || justSubmitted) && (
+        <div className="mt-6">
+          <AIProcessingIndicator stage={processingStage} />
         </div>
       )}
-      
-      <form onSubmit={handleSubmit}>
-        <div 
-          onClick={handleBarClick}
-          className={`relative bg-[#fcfbfa] shadow-[0_6px_16px_rgba(0,0,0,0.04)] rounded-2xl min-h-[140px] cursor-text transition-all duration-300 ${
-            isSubmitting ? 'opacity-70 ring-2 ring-blue-200' : ''
-          } ${justSubmitted ? 'ring-2 ring-green-200' : ''}`}
-        >
-          {/* AI Processing Indicator */}
-          {isSubmitting && (
-            <div className="absolute top-4 right-4 flex items-center text-blue-500 text-sm">
-              <Sparkles className="h-4 w-4 mr-1 animate-pulse" />
-              <span>{createSandbox ? 'AI + Deploying...' : 'AI Processing...'}</span>
-            </div>
-          )}
-
-          {/* Textarea - Full area */}
-          <textarea
-            ref={textareaRef}
-            value={prompt}
-            onInput={handleInput}
-            onKeyDown={handleKeyPress}
-            placeholder="Describe the app you want to build... (e.g., 'Create a modern todo app with React and dark mode')"
-            className="w-full h-full min-h-[140px] text-base text-gray-800 placeholder-gray-300 placeholder-opacity-80 font-normal bg-transparent border-none outline-none resize-none overflow-hidden leading-6 focus:ring-2 focus:ring-blue-200 transition duration-200 px-6 py-5 pr-20 rounded-2xl disabled:opacity-50"
-            rows={1}
-            disabled={isSubmitting}
-          />
-
-          {/* Character count indicator */}
-          <div className="absolute top-4 left-6 text-xs text-gray-400">
-            {prompt.length}/1000 characters
-          </div>
-
-          {/* Buttons positioned absolutely on top */}
-          <div className="absolute bottom-5 left-6 flex items-center gap-x-4">
-            {/* Plus Button */}
-            <button 
-              type="button"
-              onClick={(e) => e.stopPropagation()}
-              className="flex items-center justify-center w-12 h-12 bg-white border border-gray-200 rounded-full shadow-sm hover:shadow-md transition-shadow disabled:opacity-50"
-              disabled={isSubmitting}
-              title="Add files or screenshots"
-            >
-              <Plus className="h-6 w-6 text-gray-600" />
-            </button>
-
-            {/* Attach Chip */}
-            <button 
-              type="button"
-              onClick={(e) => e.stopPropagation()}
-              className="flex items-center h-10 px-4 bg-white border border-gray-200 rounded-full shadow-sm hover:shadow-md transition-shadow disabled:opacity-50"
-              disabled={isSubmitting}
-              title="Attach files or images"
-            >
-              <Paperclip className="h-5 w-5 mr-1 text-gray-600" />
-              <span className="text-base font-medium text-gray-800">Attach</span>
-            </button>
-
-            {/* Live Preview Toggle */}
-            <button 
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setCreateSandbox(!createSandbox);
-              }}
-              className={`flex items-center h-10 px-4 rounded-full shadow-sm hover:shadow-md transition-all duration-300 ${
-                createSandbox 
-                  ? 'bg-blue-500 border-blue-500 text-white' 
-                  : 'bg-white border border-gray-200 text-gray-800'
-              }`}
-              disabled={isSubmitting}
-              title="Create live preview immediately"
-            >
-              <Zap className="h-5 w-5 mr-1" />
-              <span className="text-base font-medium">Live Preview</span>
-            </button>
-          </div>
-
-          {/* Send Button - positioned absolutely on right */}
-          <button 
-            type="submit"
-            onClick={(e) => e.stopPropagation()}
-            className={`absolute bottom-5 right-6 flex items-center justify-center w-12 h-12 rounded-full shadow-sm transition-all duration-300 ${
-              isSubmitting
-                ? 'bg-blue-500 border-blue-500 cursor-not-allowed'
-                : justSubmitted
-                ? 'bg-green-500 border-green-500'
-                : prompt.trim().length >= 10
-                ? 'bg-blue-500 border-blue-500 hover:bg-blue-600'
-                : 'bg-gray-100 border-gray-200 hover:bg-gray-200'
-            }`}
-            disabled={isSubmitting || prompt.trim().length < 10}
-            title={prompt.trim().length < 10 ? 'Enter at least 10 characters' : createSandbox ? 'Create project with live preview' : 'Create project with AI'}
-          >
-            {isSubmitting ? (
-              <Loader2 className="h-6 w-6 text-white animate-spin" />
-            ) : justSubmitted ? (
-              <CheckCircle className="h-6 w-6 text-white" />
-            ) : (
-              <ArrowUp className={`h-6 w-6 ${prompt.trim().length >= 10 ? 'text-white' : 'text-gray-600'}`} />
-            )}
-          </button>
-        </div>
-      </form>
-      
-      {/* Enhanced hint text */}
-      <div className="text-center mt-3 space-y-1">
-        <p className="text-sm text-gray-500">
-          Press {isMac ? '⌘' : 'Ctrl'} + Enter to submit • Powered by AI {createSandbox && '+ Live Preview'}
-        </p>
-        <p className="text-xs text-gray-400">
-          Example: &quot;Build a task management app with React, drag-and-drop, and user authentication&quot;
-        </p>
-      </div>
     </div>
   );
 } 

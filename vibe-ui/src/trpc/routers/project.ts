@@ -237,7 +237,7 @@ export const projectRouter = createTRPCRouter({
   createProjectWithAI: protectedProcedure
     .input(z.object({
       prompt: z.string().min(10).max(1000),
-      createSandbox: z.boolean().default(false),
+      createSandbox: z.boolean().default(true),
     }))
     .mutation(async ({ ctx, input }) => {
       try {

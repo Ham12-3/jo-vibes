@@ -1,9 +1,11 @@
 'use client'
 
+import { useState } from 'react'
 import { api } from '@/trpc/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { 
   Folder, 
   Play, 
@@ -13,18 +15,39 @@ import {
   GitBranch,
   Zap,
   Monitor,
-  Square
+  Square,
+  Trash2
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import Link from 'next/link'
 import { ProjectCardSkeleton, EmptyState } from '@/components/ui/loading-states'
+import { toast } from 'sonner'
 
 interface ProjectDashboardProps {
   limit?: number
 }
 
 export function ProjectDashboard({ limit = 10 }: ProjectDashboardProps) {
-  const { data: projects, isLoading, error } = api.project.getUserProjects.useQuery({ limit })
+  const [deletingProject, setDeletingProject] = useState<string | null>(null)
+  const { data: projects, isLoading, error, refetch } = api.project.getUserProjects.useQuery({ limit })
+
+  // Delete project mutation
+  const deleteProject = api.project.deleteProject.useMutation({
+    onSuccess: () => {
+      toast.success('Project deleted successfully')
+      refetch()
+      setDeletingProject(null)
+    },
+    onError: (error) => {
+      toast.error(`Failed to delete project: ${error.message}`)
+      setDeletingProject(null)
+    }
+  })
+
+  const handleDeleteProject = (projectId: string) => {
+    setDeletingProject(projectId)
+    deleteProject.mutate({ id: projectId })
+  }
 
   if (isLoading) {
     return (
@@ -206,6 +229,79 @@ export function ProjectDashboard({ limit = 10 }: ProjectDashboardProps) {
                           Live
                         </Badge>
                       )}
+                      
+                      {/* Delete Button */}
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 hover:border-red-300"
+                            aria-label={`Delete project ${project.name}`}
+                          >
+                            <Trash2 className="h-3 w-3 mr-1" aria-hidden="true" />
+                            Delete
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent 
+                          className="sm:max-w-md bg-white border border-gray-200 shadow-lg"
+                        >
+                          <AlertDialogHeader>
+                            <AlertDialogTitle 
+                              className="text-red-600 font-semibold text-lg flex items-center gap-2"
+                            >
+                              <Trash2 className="h-5 w-5" aria-hidden="true" />
+                              Delete Project
+                            </AlertDialogTitle>
+                            <AlertDialogDescription 
+                              className="text-sm text-gray-600 space-y-2"
+                            >
+                              <p>
+                                Are you sure you want to delete <strong>&quot;{project.name}&quot;</strong>?
+                              </p>
+                              <p className="text-red-600 font-medium">
+                                ⚠️ This action cannot be undone.
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                This will permanently delete:
+                              </p>
+                              <ul className="text-xs text-gray-500 ml-4 list-disc space-y-1">
+                                <li>All project files ({project._count.files} files)</li>
+                                <li>Live previews and sandboxes</li>
+                                <li>Deployment history</li>
+                                <li>Chat sessions and messages</li>
+                              </ul>
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter className="flex flex-col-reverse sm:flex-row gap-2">
+                            <AlertDialogCancel 
+                              className="w-full sm:w-auto"
+                              autoFocus
+                              aria-label="Cancel deletion and keep project"
+                            >
+                              Cancel
+                            </AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteProject(project.id)}
+                              disabled={deletingProject === project.id}
+                              className="w-full sm:w-auto bg-red-600 hover:bg-red-700 focus:ring-red-500 focus:ring-offset-2"
+                              aria-label={`Permanently delete ${project.name}`}
+                            >
+                              {deletingProject === project.id ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                                  Deleting...
+                                </>
+                              ) : (
+                                <>
+                                  <Trash2 className="h-4 w-4 mr-2" aria-hidden="true" />
+                                  Delete Project
+                                </>
+                              )}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </div>
                   </div>
                 </div>
