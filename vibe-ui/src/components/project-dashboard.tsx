@@ -7,16 +7,17 @@ import { Badge } from '@/components/ui/badge'
 import { 
   Folder, 
   Play, 
-  Settings, 
   ExternalLink, 
   Calendar, 
   Code, 
-  Globe,
   GitBranch,
-  Zap
+  Zap,
+  Monitor,
+  Square
 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import Link from 'next/link'
+import { ProjectCardSkeleton, EmptyState } from '@/components/ui/loading-states'
 
 interface ProjectDashboardProps {
   limit?: number
@@ -27,21 +28,10 @@ export function ProjectDashboard({ limit = 10 }: ProjectDashboardProps) {
 
   if (isLoading) {
     return (
-      <div className="p-8">
+      <div className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Card key={i} className="animate-pulse">
-              <CardHeader className="space-y-2">
-                <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-                <div className="h-3 bg-gray-200 rounded w-1/2"></div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="h-3 bg-gray-200 rounded"></div>
-                  <div className="h-3 bg-gray-200 rounded w-2/3"></div>
-                </div>
-              </CardContent>
-            </Card>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <ProjectCardSkeleton key={i} />
           ))}
         </div>
       </div>
@@ -62,14 +52,12 @@ export function ProjectDashboard({ limit = 10 }: ProjectDashboardProps) {
 
   if (!projects?.length) {
     return (
-      <div className="p-12 text-center">
-        <div className="text-gray-400 mb-6">
-          <Folder className="h-16 w-16 mx-auto mb-4" />
-          <h3 className="text-xl font-medium text-gray-900 mb-2">No projects yet</h3>
-          <p className="text-gray-600 max-w-md mx-auto">
-            Start building your first application with AI assistance. Upload a screenshot or describe your idea to get started.
-          </p>
-        </div>
+      <div className="p-6">
+        <EmptyState
+          icon={Folder}
+          title="No projects yet"
+          description="Start building your first application with AI assistance. Upload a screenshot or describe your idea to get started."
+        />
       </div>
     )
   }
@@ -89,82 +77,142 @@ export function ProjectDashboard({ limit = 10 }: ProjectDashboardProps) {
     }
   }
 
+  const getSandboxStatusColor = (status: string) => {
+    switch (status) {
+      case 'RUNNING':
+        return 'bg-green-100 text-green-800'
+      case 'CREATING':
+        return 'bg-yellow-100 text-yellow-800'
+      case 'STOPPED':
+        return 'bg-gray-100 text-gray-800'
+      case 'ERROR':
+        return 'bg-red-100 text-red-800'
+      default:
+        return 'bg-gray-100 text-gray-800'
+    }
+  }
+
   return (
     <div className="p-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {projects.map((project) => (
-          <Card key={project.id} className="hover:shadow-lg transition-shadow duration-200 group">
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <CardTitle className="text-lg font-semibold truncate group-hover:text-purple-600 transition-colors">
-                    {project.name}
-                  </CardTitle>
-                  <CardDescription className="text-sm text-gray-600 mt-1 line-clamp-2">
-                    {project.description || 'No description provided'}
-                  </CardDescription>
-                </div>
-                <Badge className={`ml-2 text-xs ${getStatusColor(project.status)}`}>
-                  {project.status}
-                </Badge>
-              </div>
-            </CardHeader>
-            
-            <CardContent className="pt-0">
-              <div className="space-y-3">
-                {/* Framework & Tech Stack */}
-                {project.framework && (
-                  <div className="flex items-center text-sm text-gray-600">
-                    <GitBranch className="h-4 w-4 mr-2" />
-                    <span>{project.framework}</span>
-                    {project.styling && (
-                      <span className="ml-2 text-gray-400">• {project.styling}</span>
+        {projects.map((project) => {
+          const activeSandbox = project.sandboxes?.[0]
+          const hasRunningApp = activeSandbox?.status === 'RUNNING' && activeSandbox.url
+          
+          return (
+            <Card key={project.id} className="card-hover hover-lift fade-in-up group">
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-lg font-semibold truncate group-hover:text-purple-600 transition-colors">
+                      {project.name}
+                    </CardTitle>
+                    <CardDescription className="text-sm text-gray-600 mt-1 line-clamp-2">
+                      {project.description || 'No description provided'}
+                    </CardDescription>
+                  </div>
+                  <div className="flex flex-col gap-1 ml-2">
+                    <Badge className={`text-xs ${getStatusColor(project.status)}`}>
+                      {project.status}
+                    </Badge>
+                    {activeSandbox && (
+                      <Badge className={`text-xs ${getSandboxStatusColor(activeSandbox.status)}`}>
+                        <Monitor className="h-3 w-3 mr-1" />
+                        {activeSandbox.status}
+                      </Badge>
                     )}
                   </div>
-                )}
-
-                {/* Last Updated */}
-                <div className="flex items-center text-sm text-gray-500">
-                  <Calendar className="h-4 w-4 mr-2" />
-                  <span>Updated {formatDistanceToNow(new Date(project.updatedAt), { addSuffix: true })}</span>
                 </div>
+              </CardHeader>
+              
+              <CardContent className="pt-0">
+                <div className="space-y-3">
+                  {/* Framework & Tech Stack */}
+                  {project.framework && (
+                    <div className="flex items-center text-sm text-gray-600">
+                      <GitBranch className="h-4 w-4 mr-2" />
+                      <span>{project.framework}</span>
+                      {project.styling && (
+                        <span className="ml-2 text-gray-400">• {project.styling}</span>
+                      )}
+                    </div>
+                  )}
 
-                {/* Action Buttons */}
-                <div className="flex items-center justify-between pt-2">
-                  <div className="flex gap-2">
-                    <Link href={`/project/${project.id}`}>
-                      <Button size="sm" variant="outline" className="text-xs">
-                        <Code className="h-3 w-3 mr-1" />
-                        Edit
-                      </Button>
-                    </Link>
-                    
-                    {project.status === 'READY' && (
-                      <Link href={`/project/${project.id}/preview`}>
+                  {/* Sandbox Status */}
+                  {activeSandbox && (
+                    <div className="flex items-center text-sm">
+                      {activeSandbox.status === 'RUNNING' ? (
+                        <div className="flex items-center text-green-600">
+                          <Play className="h-4 w-4 mr-2" />
+                          <span>Live Preview Available</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center text-gray-600">
+                          <Square className="h-4 w-4 mr-2" />
+                          <span>Sandbox {activeSandbox.status.toLowerCase()}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* File Count */}
+                  <div className="flex items-center text-sm text-gray-500">
+                    <Code className="h-4 w-4 mr-2" />
+                    <span>{project._count.files} files generated</span>
+                  </div>
+
+                  {/* Last Updated */}
+                  <div className="flex items-center text-sm text-gray-500">
+                    <Calendar className="h-4 w-4 mr-2" />
+                    <span>Updated {formatDistanceToNow(new Date(project.updatedAt), { addSuffix: true })}</span>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center justify-between pt-2">
+                    <div className="flex gap-2">
+                      <Link href={`/project/${project.id}`}>
                         <Button size="sm" variant="outline" className="text-xs">
-                          <Play className="h-3 w-3 mr-1" />
-                          Preview
+                          <Code className="h-3 w-3 mr-1" />
+                          Edit
                         </Button>
                       </Link>
-                    )}
-                  </div>
+                      
+                      {hasRunningApp && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs"
+                          onClick={() => window.open(activeSandbox.url!, '_blank')}
+                        >
+                          <ExternalLink className="h-3 w-3 mr-1" />
+                          Preview
+                        </Button>
+                      )}
+                    </div>
 
-                  <div className="flex gap-1">
-                    {project.deployments?.some(d => d.status === 'SUCCESS') && (
-                      <Button size="sm" variant="ghost" className="p-1 h-8 w-8">
-                        <ExternalLink className="h-3 w-3" />
-                      </Button>
-                    )}
-                    
-                    <Button size="sm" variant="ghost" className="p-1 h-8 w-8">
-                      <Settings className="h-3 w-3" />
-                    </Button>
+                    <div className="flex gap-1">
+                      {project.status === 'READY' && !activeSandbox && (
+                        <Link href={`/project/${project.id}?tab=preview`}>
+                          <Button size="sm" variant="default" className="text-xs">
+                            <Play className="h-3 w-3 mr-1" />
+                            Run
+                          </Button>
+                        </Link>
+                      )}
+                      
+                      {hasRunningApp && (
+                        <Badge className="bg-green-100 text-green-800 text-xs">
+                          <Zap className="h-3 w-3 mr-1" />
+                          Live
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
     </div>
   )

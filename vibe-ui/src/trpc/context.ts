@@ -1,8 +1,7 @@
 import { type FetchCreateContextFnOptions } from '@trpc/server/adapters/fetch'
+import { auth } from '@clerk/nextjs/server'
 import { db } from '@/lib/db'
 
-// Replace this with your actual session/auth logic
-// For now, I'm setting up a placeholder for user authentication
 export type User = {
   id: string
   email: string
@@ -10,21 +9,45 @@ export type User = {
   name?: string | null
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function createTRPCContext(_opts: FetchCreateContextFnOptions) {
-  // TODO: Add your authentication logic here
-  // This could be from cookies, JWT tokens, session, etc.
-  // For example, if using NextAuth.js:
-  // const session = await getServerAuthSession(opts.req)
+export async function createTRPCContext(_: FetchCreateContextFnOptions) {
+  const { userId } = await auth()
   
-  // Placeholder user - replace with actual auth
-  // For now, creating a mock user to avoid type errors
-  const user: User | null = {
-    id: 'mock-user-id',
-    email: 'test@example.com',
-    username: 'testuser',
-    name: 'Test User'
-  } // Change this to null when you implement real auth
+  let user: User | null = null
+  
+  if (userId) {
+    // Try to get user from database first
+    let dbUser = await db.user.findUnique({
+      where: { id: userId },
+    })
+    
+    // If user doesn't exist in database, create from Clerk data
+    if (!dbUser) {
+      // Import clerkClient to get user details
+      const { clerkClient } = await import('@clerk/nextjs/server')
+      const client = await clerkClient()
+      const clerkUser = await client.users.getUser(userId)
+      
+      // Create user in database
+      dbUser = await db.user.create({
+        data: {
+          id: userId,
+          email: clerkUser.emailAddresses[0]?.emailAddress || '',
+          username: clerkUser.username || clerkUser.emailAddresses[0]?.emailAddress.split('@')[0] || 'user',
+          name: clerkUser.firstName && clerkUser.lastName 
+            ? `${clerkUser.firstName} ${clerkUser.lastName}`
+            : clerkUser.firstName || clerkUser.lastName || null,
+          avatar: clerkUser.imageUrl,
+        },
+      })
+    }
+    
+    user = {
+      id: dbUser.id,
+      email: dbUser.email,
+      username: dbUser.username,
+      name: dbUser.name,
+    }
+  }
 
   return {
     db,

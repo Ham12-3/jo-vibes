@@ -4,6 +4,8 @@ import { projectRouter } from './routers/project'
 import { vibeRouter } from './routers/vibe'
 import { likeRouter } from './routers/like'
 import { commentRouter } from './routers/comment'
+import { deploymentRouter } from './routers/deployment'
+import { chatRouter } from './routers/chat'
 
 /**
  * This is the primary router for your server.
@@ -16,6 +18,8 @@ export const appRouter = createTRPCRouter({
   vibe: vibeRouter,
   like: likeRouter,
   comment: commentRouter,
+  deployment: deploymentRouter,
+  chat: chatRouter,
 })
 
 // export type definition of API
