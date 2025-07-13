@@ -18,15 +18,21 @@ interface ProjectFile {
   path: string
   content: string
   language: string | null
-  createdAt: string
+  createdAt: Date
+  updatedAt: Date
+  projectId: string
 }
 
 interface Sandbox {
   id: string
-  e2bId: string
+  e2bId: string | null
   url: string | null
   status: 'CREATING' | 'RUNNING' | 'STOPPED' | 'ERROR'
   port: number | null
+  createdAt: Date
+  updatedAt: Date
+  expiresAt: Date | null
+  projectId: string
 }
 
 interface ProjectPreviewProps {
@@ -272,6 +278,9 @@ export function ProjectPreview({ project, className }: ProjectPreviewProps) {
                       className="w-full h-[600px] border-0"
                       title={`${project.name} Preview`}
                       sandbox="allow-same-origin allow-scripts allow-forms"
+                      onError={() => {
+                        console.log('Iframe failed to load, sandbox may still be starting...')
+                      }}
                     />
                   </div>
                 </div>

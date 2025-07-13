@@ -57,41 +57,11 @@ export function ProjectChat({ projectId }: ProjectChatProps) {
         },
       }
     )
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId])
 
   // Send message mutation
-  const sendMessage = api.chat.sendMessage.useMutation({
-    onMutate: () => {
-      setIsTyping(true)
-      setMessage('')
-    },
-    onSuccess: (data) => {
-      // Update the chat session with new messages
-      setChatSession((prev: any) => {
-        if (!prev) return prev
-        return {
-          ...prev,
-          messages: [
-            ...prev.messages,
-            data.userMessage,
-            data.aiMessage,
-          ],
-        }
-      })
-      
-      // Auto-scroll to bottom
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-      }, 100)
-    },
-    onError: (error) => {
-      toast.error(`Failed to send message: ${error.message}`)
-    },
-    onSettled: () => {
-      setIsTyping(false)
-      inputRef.current?.focus()
-    },
-  })
+  const sendMessage = api.chat.sendMessage.useMutation()
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -103,15 +73,47 @@ export function ProjectChat({ projectId }: ProjectChatProps) {
     inputRef.current?.focus()
   }, [])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     if (!message.trim() || !chatSession) return
 
-    sendMessage.mutate({
-      chatSessionId: chatSession.id,
-      content: message.trim(),
-    })
+    setIsTyping(true)
+    const messageContent = message.trim()
+    setMessage('')
+
+    try {
+      const response = await sendMessage.mutateAsync({
+        chatSessionId: chatSession.id,
+        content: messageContent,
+      })
+
+      // Update the chat session with new messages
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setChatSession((prev: any) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          messages: [
+            ...prev.messages,
+            response.userMessage,
+            response.aiMessage,
+          ],
+        }
+      })
+      
+      // Auto-scroll to bottom
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+      }, 100)
+    } catch (error) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      toast.error(`Failed to send message: ${(error as any).message}`)
+      setMessage(messageContent) // Restore message on error
+    } finally {
+      setIsTyping(false)
+      inputRef.current?.focus()
+    }
   }
 
   const copyMessage = async (messageId: string, content: string) => {

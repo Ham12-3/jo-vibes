@@ -22,7 +22,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { api } from '@/trpc/client'
-import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { EmptyState, LoadingSpinner } from '@/components/ui/loading-states'
 
@@ -33,12 +32,10 @@ interface DeploymentPanelProps {
 
 
 
-export function DeploymentPanel({ projectId, projectName: _projectName }: DeploymentPanelProps) {
+export function DeploymentPanel({ projectId }: DeploymentPanelProps) {
   const [isDeploying, setIsDeploying] = useState(false)
   const [customDomain, setCustomDomain] = useState('')
   const [showCustomDomain, setShowCustomDomain] = useState(false)
-  
-  const queryClient = useQueryClient()
 
   // Check if deployment is available
   const { data: deploymentAvailability } = api.deployment.isDeploymentAvailable.useQuery()
@@ -50,7 +47,7 @@ export function DeploymentPanel({ projectId, projectName: _projectName }: Deploy
 
   // Deploy project mutation
   const deployProject = api.deployment.deployProject.useMutation({
-    onSuccess: (deployment) => {
+    onSuccess: () => {
       toast.success('🚀 Deployment started!', {
         description: 'Your project is being deployed to Vercel. This may take a few minutes.',
         duration: 5000,
@@ -108,7 +105,7 @@ export function DeploymentPanel({ projectId, projectName: _projectName }: Deploy
     try {
       await navigator.clipboard.writeText(text)
       toast.success('URL copied to clipboard!')
-    } catch (error) {
+    } catch {
       toast.error('Failed to copy URL')
     }
   }
@@ -368,32 +365,30 @@ export function DeploymentPanel({ projectId, projectName: _projectName }: Deploy
                       </>
                     )}
                     
-                    {deployment.status !== 'DELETED' && (
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Deployment</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to delete this deployment? 
-                              This will remove it from Vercel and make it inaccessible.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDeleteDeployment(deployment.id)}
-                            >
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    )}
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Deployment</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to delete this deployment? 
+                            This will remove it from Vercel and make it inaccessible.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => handleDeleteDeployment(deployment.id)}
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
               ))}

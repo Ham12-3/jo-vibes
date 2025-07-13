@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { createTRPCRouter, publicProcedure, protectedProcedure } from '@/trpc/innit'
 import { TRPCError } from '@trpc/server'
 import { aiProcessor } from '@/lib/ai-processor'
-import { e2bService } from '@/lib/e2b-service'
+import { e2bService } from '@/lib/e2b-service-new'
 
 // Helper function to determine file language
 function getLanguageFromPath(filePath: string): string {

@@ -9,9 +9,9 @@ import { UserButton } from '@clerk/nextjs'
 import { db } from '@/lib/db'
 
 interface ProjectPageProps {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 export default async function ProjectPage({ params }: ProjectPageProps) {
@@ -21,10 +21,13 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
     redirect('/sign-in')
   }
 
+  // Await params in Next.js 15
+  const { id } = await params
+
   // Get the project with all related data
   const project = await db.project.findFirst({
     where: {
-      id: params.id,
+      id: id,
       userId: userId, // Ensure user can only access their own projects
     },
     include: {

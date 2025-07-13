@@ -9,6 +9,7 @@ export type User = {
   name?: string | null
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function createTRPCContext(_: FetchCreateContextFnOptions) {
   const { userId } = await auth()
   

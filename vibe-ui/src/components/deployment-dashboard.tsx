@@ -24,20 +24,6 @@ import { api } from '@/trpc/client'
 import { toast } from 'sonner'
 import Link from 'next/link'
 
-interface Deployment {
-  id: string
-  url: string | null
-  status: 'PENDING' | 'BUILDING' | 'SUCCESS' | 'FAILED' | 'DELETED'
-  provider: string | null
-  createdAt: string
-  updatedAt: string
-  project: {
-    id: string
-    name: string
-    description: string | null
-  }
-}
-
 export function DeploymentDashboard() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -62,7 +48,7 @@ export function DeploymentDashboard() {
     try {
       await navigator.clipboard.writeText(text)
       toast.success('URL copied to clipboard!')
-    } catch (error) {
+    } catch {
       toast.error('Failed to copy URL')
     }
   }
@@ -294,32 +280,30 @@ export function DeploymentDashboard() {
                       </Button>
                     </Link>
 
-                    {deployment.status !== 'DELETED' && (
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="sm" title="Delete deployment">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Deployment</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to delete this deployment? 
-                              This will remove it from Vercel and make it inaccessible.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => deleteDeployment.mutate({ deploymentId: deployment.id })}
-                            >
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    )}
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="sm" title="Delete deployment">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete Deployment</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to delete this deployment? 
+                            This will remove it from Vercel and make it inaccessible.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => deleteDeployment.mutate({ deploymentId: deployment.id })}
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
               ))}

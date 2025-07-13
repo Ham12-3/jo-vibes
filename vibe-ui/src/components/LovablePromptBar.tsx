@@ -1,5 +1,5 @@
 "use client"
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { ArrowUp, Paperclip, Plus, Loader2, CheckCircle, Sparkles, Zap } from 'lucide-react'
 import { api } from '@/trpc/client'
 import { useQueryClient } from '@tanstack/react-query'
@@ -13,6 +13,14 @@ export function LovablePromptBar() {
   const [justSubmitted, setJustSubmitted] = useState(false);
   const [createSandbox, setCreateSandbox] = useState(false);
   const [processingStage, setProcessingStage] = useState<"analyzing" | "generating" | "creating" | "deploying" | "complete">("analyzing");
+  const [isMac, setIsMac] = useState(false);
+
+  // Detect platform after component mounts
+  useEffect(() => {
+    if (typeof window !== 'undefined' && navigator?.platform) {
+      setIsMac(navigator.platform.includes('Mac'));
+    }
+  }, []);
   
   const queryClient = useQueryClient();
 
@@ -231,7 +239,7 @@ export function LovablePromptBar() {
       {/* Enhanced hint text */}
       <div className="text-center mt-3 space-y-1">
         <p className="text-sm text-gray-500">
-          Press {navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'} + Enter to submit • Powered by AI {createSandbox && '+ Live Preview'}
+          Press {isMac ? '⌘' : 'Ctrl'} + Enter to submit • Powered by AI {createSandbox && '+ Live Preview'}
         </p>
         <p className="text-xs text-gray-400">
           Example: &quot;Build a task management app with React, drag-and-drop, and user authentication&quot;
