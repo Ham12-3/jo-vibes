@@ -775,6 +775,154 @@ Additional context:
         }
       });
     }
+
+    // NEW: Comprehensive React component validation for page.tsx and layout.tsx
+    if ((filePath.includes('page.tsx') || filePath.includes('layout.tsx'))) {
+      // Check for any React component patterns that don't have proper export default
+      if (content.includes('const ') && (content.includes('ErrorBoundary') || content.includes('Component') || content.includes('Page') || content.includes('Layout')) && !content.includes('export default')) {
+        console.warn(`⚠️ React component without export default detected in ${filePath}, using fallback`);
+        return this.generateFallbackContent(filePath, { 
+          projectName: 'Project', 
+          description: 'A web application', 
+          projectType: 'website',
+          framework: 'Next.js', 
+          styling: 'Tailwind CSS',
+          features: [],
+          complexity: 'beginner',
+          estimatedTime: '1-2 hours',
+          techStack: [],
+          fileStructure: {
+            pages: [],
+            components: [],
+            utils: [],
+            styles: [],
+            hooks: [],
+            types: []
+          },
+          designSystem: {
+            colorScheme: 'light',
+            primaryColor: '#3B82F6',
+            layout: 'single-page'
+          }
+        });
+      }
+
+      // Check for React hooks without proper component structure
+      if ((content.includes('useState') || content.includes('useEffect') || content.includes('useMemo') || content.includes('useCallback')) && !content.includes('export default function') && !content.includes('export default const')) {
+        console.warn(`⚠️ React hooks without proper component structure detected in ${filePath}, using fallback`);
+        return this.generateFallbackContent(filePath, { 
+          projectName: 'Project', 
+          description: 'A web application', 
+          projectType: 'website',
+          framework: 'Next.js', 
+          styling: 'Tailwind CSS',
+          features: [],
+          complexity: 'beginner',
+          estimatedTime: '1-2 hours',
+          techStack: [],
+          fileStructure: {
+            pages: [],
+            components: [],
+            utils: [],
+            styles: [],
+            hooks: [],
+            types: []
+          },
+          designSystem: {
+            colorScheme: 'light',
+            primaryColor: '#3B82F6',
+            layout: 'single-page'
+          }
+        });
+      }
+
+      // Check for JSX without proper React component wrapper
+      if ((content.includes('<div') || content.includes('<h1') || content.includes('<p>')) && !content.includes('export default') && !content.includes('function ') && !content.includes('const ')) {
+        console.warn(`⚠️ JSX without proper React component wrapper detected in ${filePath}, using fallback`);
+        return this.generateFallbackContent(filePath, { 
+          projectName: 'Project', 
+          description: 'A web application', 
+          projectType: 'website',
+          framework: 'Next.js', 
+          styling: 'Tailwind CSS',
+          features: [],
+          complexity: 'beginner',
+          estimatedTime: '1-2 hours',
+          techStack: [],
+          fileStructure: {
+            pages: [],
+            components: [],
+            utils: [],
+            styles: [],
+            hooks: [],
+            types: []
+          },
+          designSystem: {
+            colorScheme: 'light',
+            primaryColor: '#3B82F6',
+            layout: 'single-page'
+          }
+        });
+      }
+
+      // Check for React components with syntax errors
+      if (content.includes('export default') && (content.includes('{error}') || content.includes('{loading}') || content.includes('{product.'))) {
+        console.warn(`⚠️ React component with syntax errors detected in ${filePath}, using fallback`);
+        return this.generateFallbackContent(filePath, { 
+          projectName: 'Project', 
+          description: 'A web application', 
+          projectType: 'website',
+          framework: 'Next.js', 
+          styling: 'Tailwind CSS',
+          features: [],
+          complexity: 'beginner',
+          estimatedTime: '1-2 hours',
+          techStack: [],
+          fileStructure: {
+            pages: [],
+            components: [],
+            utils: [],
+            styles: [],
+            hooks: [],
+            types: []
+          },
+          designSystem: {
+            colorScheme: 'light',
+            primaryColor: '#3B82F6',
+            layout: 'single-page'
+          }
+        });
+      }
+
+      // Check for React components with unclosed JSX
+      if (content.includes('<div') && !content.includes('</div>') && content.includes('export default')) {
+        console.warn(`⚠️ React component with unclosed JSX detected in ${filePath}, using fallback`);
+        return this.generateFallbackContent(filePath, { 
+          projectName: 'Project', 
+          description: 'A web application', 
+          projectType: 'website',
+          framework: 'Next.js', 
+          styling: 'Tailwind CSS',
+          features: [],
+          complexity: 'beginner',
+          estimatedTime: '1-2 hours',
+          techStack: [],
+          fileStructure: {
+            pages: [],
+            components: [],
+            utils: [],
+            styles: [],
+            hooks: [],
+            types: []
+          },
+          designSystem: {
+            colorScheme: 'light',
+            primaryColor: '#3B82F6',
+            layout: 'single-page'
+          }
+        });
+      }
+    }
     
     // Check for React components without proper structure
     if ((filePath.includes('page.tsx') || filePath.includes('layout.tsx')) && 
@@ -857,6 +1005,116 @@ Additional context:
 
     // Check for incomplete function definitions
     if (content.includes('const ') && content.includes('= (') && !content.includes('return')) {
+      return true;
+    }
+
+    // NEW: Check for any React component patterns without proper export
+    if (content.includes('const ') && (content.includes('ErrorBoundary') || content.includes('Component') || content.includes('Page') || content.includes('Layout')) && !content.includes('export default')) {
+      return true;
+    }
+
+    // NEW: Check for React hooks without proper component structure
+    if ((content.includes('useState') || content.includes('useEffect') || content.includes('useMemo') || content.includes('useCallback')) && !content.includes('export default function') && !content.includes('export default const')) {
+      return true;
+    }
+
+    // NEW: Check for JSX without proper React component wrapper
+    if ((content.includes('<div') || content.includes('<h1') || content.includes('<p>')) && !content.includes('export default') && !content.includes('function ') && !content.includes('const ')) {
+      return true;
+    }
+
+    // NEW: Check for incomplete React component definitions
+    if (content.includes('const ') && content.includes('= (') && content.includes('props') && !content.includes('return')) {
+      return true;
+    }
+
+    // NEW: Check for React components without proper JSX return
+    if (content.includes('export default') && !content.includes('return (') && !content.includes('return(') && !content.includes('return <')) {
+      return true;
+    }
+
+    // NEW: Check for malformed React component exports
+    if (content.includes('export default') && (content.includes('const ') || content.includes('let ') || content.includes('var ')) && !content.includes('function')) {
+      return true;
+    }
+
+    // NEW: Check for React components with syntax errors
+    if (content.includes('export default') && (content.includes('{error}') || content.includes('{loading}') || content.includes('{product.'))) {
+      return true;
+    }
+
+    // NEW: Check for incomplete React components that don't return JSX
+    if (content.includes('export default function') && !content.includes('return') && !content.includes('JSX')) {
+      return true;
+    }
+
+    // NEW: Check for React components with unclosed JSX
+    if (content.includes('<div') && !content.includes('</div>') && content.includes('export default')) {
+      return true;
+    }
+
+    // NEW: Check for React components with malformed JSX attributes
+    if (content.includes('className=') && content.includes('undefined') && content.includes('export default')) {
+      return true;
+    }
+
+    // NEW: Check for React components with TypeScript errors
+    if (content.includes('React.FC<') && !content.includes('export default')) {
+      return true;
+    }
+
+    // NEW: Check for React components with malformed imports
+    if (content.includes('import ') && content.includes('from') && !content.includes('export default') && (content.includes('<div') || content.includes('className='))) {
+      return true;
+    }
+
+    // NEW: Check for the exact pattern causing "The default export is not a React Component" error
+    if (content.includes('const ') && content.includes('= () =>') && !content.includes('return (') && !content.includes('return(') && !content.includes('return <')) {
+      return true;
+    }
+
+    // NEW: Check for React components with missing return statements
+    if (content.includes('export default function') && !content.includes('return')) {
+      return true;
+    }
+
+    // NEW: Check for React components with malformed JSX structure
+    if (content.includes('return (') && !content.includes(')')) {
+      return true;
+    }
+
+    // NEW: Check for React components with unclosed JSX tags
+    if (content.includes('<div') && !content.includes('</div>')) {
+      return true;
+    }
+
+    // NEW: Check for React components with malformed template literals
+    if (content.includes('`') && !content.includes('`', content.indexOf('`') + 1)) {
+      return true;
+    }
+
+    // NEW: Check for React components with missing closing braces
+    if (content.includes('{') && !content.includes('}')) {
+      return true;
+    }
+
+    // NEW: Check for React components with missing parentheses
+    if (content.includes('(') && !content.includes(')')) {
+      return true;
+    }
+
+    // NEW: Check for React components that are just fragments without proper structure
+    if (content.includes('<>') && !content.includes('</>')) {
+      return true;
+    }
+
+    // NEW: Check for React components with malformed className attributes
+    if (content.includes('className=') && content.includes('{') && !content.includes('}')) {
+      return true;
+    }
+
+    // NEW: Check for React components with undefined or null values
+    if (content.includes('undefined') || content.includes('null')) {
       return true;
     }
 
@@ -1221,7 +1479,38 @@ MODERN STANDARDS:
 - Optimize for Core Web Vitals
 - Include proper loading states and error handling
 
-Generate ONLY the code, no explanations or markdown formatting.`;
+Generate ONLY the code, no explanations or markdown formatting.
+
+CRITICAL REACT COMPONENT REQUIREMENTS:
+For React components, you MUST follow this EXACT structure:
+
+\`\`\`tsx
+'use client'
+import React from 'react'
+
+export default function ComponentName() {
+  return (
+    <div>
+      {/* Your JSX content */}
+    </div>
+  )
+}
+\`\`\`
+
+NEVER generate:
+- Incomplete React components without proper export default
+- Components with missing return statements
+- Malformed JSX with unclosed tags
+- Components with undefined or null values
+- Components with syntax errors
+- Components without proper structure
+
+ALWAYS ensure:
+- Every React component has 'export default function ComponentName()'
+- Every component returns valid JSX
+- All JSX tags are properly closed
+- No syntax errors or malformed code
+- Proper TypeScript types and imports`;
   }
 
   // Build enhanced user prompt with specific requirements
@@ -1426,29 +1715,91 @@ module.exports = {
     if (filePath === 'src/app/page.tsx') {
       return `'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 
 export default function HomePage() {
+  const [isLoading, setIsLoading] = useState(false)
+
+  const handleGetStarted = () => {
+    setIsLoading(true)
+    // Simulate action
+    setTimeout(() => setIsLoading(false), 2000)
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="container mx-auto px-4 py-16">
-        <div className="text-center">
-          <h1 className="text-5xl font-bold text-gray-900 mb-6">
-            Welcome to ${projectName}
-          </h1>
-          <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-            ${analysis.description || 'A modern web application built with Next.js and Tailwind CSS'}
-          </p>
-          <div className="flex justify-center gap-4">
-            <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors">
-              Get Started
-            </button>
-            <button className="border border-gray-300 hover:border-gray-400 text-gray-700 px-6 py-3 rounded-lg font-medium transition-colors">
-              Learn More
-            </button>
+    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600">
+      {/* Header */}
+      <header className="text-center py-12 px-4">
+        <h1 className="text-5xl md:text-6xl font-bold text-white mb-6">
+          Welcome to ${projectName}
+        </h1>
+        <p className="text-xl md:text-2xl text-white/90 max-w-3xl mx-auto leading-relaxed">
+          ${analysis.description || 'A modern web application built with Next.js and Tailwind CSS'}
+        </p>
+      </header>
+
+      {/* Main Content */}
+      <main className="container mx-auto px-4 py-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-8 text-center">
+            <h2 className="text-3xl font-bold text-white mb-6">Get Started Today</h2>
+            <p className="text-white/80 mb-8 text-lg">
+              Experience the power of modern web development with our cutting-edge platform.
+            </p>
+            <div className="flex flex-col sm:flex-row justify-center gap-4">
+              <button 
+                onClick={handleGetStarted}
+                disabled={isLoading}
+                className={\`
+                  bg-blue-500 hover:bg-blue-600 text-white px-8 py-4 rounded-lg 
+                  font-medium transition-all duration-300 transform hover:scale-105
+                  focus:outline-none focus:ring-2 focus:ring-white/50
+                  \${isLoading ? 'opacity-50 cursor-not-allowed' : ''}
+                \`}
+                aria-label="Get Started"
+              >
+                {isLoading ? 'Loading...' : 'Get Started'}
+              </button>
+              <button 
+                className="border border-white/30 hover:border-white/50 text-white px-8 py-4 rounded-lg font-medium transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-white/50"
+                aria-label="Learn More"
+              >
+                Learn More
+              </button>
+            </div>
+          </div>
+
+          {/* Features Grid */}
+          <div className="grid md:grid-cols-3 gap-8 mt-16">
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 text-center text-white">
+              <div className="w-16 h-16 bg-green-400 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl">🚀</span>
+              </div>
+              <h3 className="text-xl font-semibold mb-3">Fast & Modern</h3>
+              <p className="text-white/80">Built with the latest technologies for optimal performance</p>
+            </div>
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 text-center text-white">
+              <div className="w-16 h-16 bg-blue-400 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl">📱</span>
+              </div>
+              <h3 className="text-xl font-semibold mb-3">Responsive</h3>
+              <p className="text-white/80">Perfect experience on all devices and screen sizes</p>
+            </div>
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 text-center text-white">
+              <div className="w-16 h-16 bg-purple-400 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl">⚡</span>
+              </div>
+              <h3 className="text-xl font-semibold mb-3">Optimized</h3>
+              <p className="text-white/80">Optimized for speed, accessibility, and user experience</p>
+            </div>
           </div>
         </div>
-      </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="text-center py-8 text-white/70 mt-16">
+        <p className="text-lg">© 2024 ${projectName}. Built with ❤️</p>
+      </footer>
     </div>
   )
 }`;
@@ -1510,17 +1861,48 @@ body {
 
     switch (fileType) {
       case 'tsx':
-        return `import React from 'react'
+        return `'use client'
+
+import React, { useState } from 'react'
 
 interface ${fileName.split('.')[0]}Props {
-  // Add props here
+  title?: string
+  description?: string
 }
 
-export default function ${fileName.split('.')[0]}(props: ${fileName.split('.')[0]}Props) {
+export default function ${fileName.split('.')[0]}({ 
+  title = '${fileName.split('.')[0]}', 
+  description = 'This is the ${fileName.split('.')[0]} component for ${projectName}'
+}: ${fileName.split('.')[0]}Props) {
+  const [isActive, setIsActive] = useState(false)
+
+  const handleClick = () => {
+    setIsActive(true)
+    setTimeout(() => setIsActive(false), 2000)
+  }
+
   return (
-    <div className="p-4 bg-white rounded-lg shadow-sm border">
-      <h2 className="text-xl font-semibold text-gray-900 mb-2">${fileName.split('.')[0]}</h2>
-      <p className="text-gray-600">This is the ${fileName.split('.')[0]} component for ${projectName}</p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 flex items-center justify-center p-4">
+      <div className="bg-white/10 backdrop-blur-sm rounded-xl p-8 text-center text-white max-w-md w-full">
+        <div className="w-16 h-16 bg-blue-400 rounded-full flex items-center justify-center mx-auto mb-6">
+          <span className="text-2xl">✨</span>
+        </div>
+        <h1 className="text-3xl font-bold mb-4">{title}</h1>
+        <p className="text-white/80 mb-8 leading-relaxed">{description}</p>
+        <button 
+          onClick={handleClick}
+          disabled={isActive}
+          className={\`
+            bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg 
+            font-medium transition-all duration-300 transform hover:scale-105
+            focus:outline-none focus:ring-2 focus:ring-white/50
+            \${isActive ? 'opacity-50 cursor-not-allowed' : ''}
+          \`}
+          aria-label="Interact with component"
+        >
+          {isActive ? 'Loading...' : 'Get Started'}
+        </button>
+      </div>
     </div>
   )
 }`;
