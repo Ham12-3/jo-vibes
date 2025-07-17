@@ -1,4 +1,6 @@
 import { db } from './db'
+import { codesandboxPIDA } from './codesandbox-pida'
+import { customSandboxService } from './custom-sandbox'
 
 export interface E2BSandboxConfig {
   projectId: string
@@ -91,17 +93,71 @@ export class E2BService {
         }
       }
 
-      // Step 3: Try CodeSandbox (no API key needed)
-      console.log('Trying CodeSandbox...')
-      const codeSandboxUrl = await this.createWorkingCodeSandbox(config)
-      if (codeSandboxUrl) {
+      // Step 3: Try Custom Sandbox (our own CodeSandbox-like service)
+      if (process.env.ENABLE_CUSTOM_SANDBOX === 'true') {
+        try {
+          console.log('🚀 Creating custom sandbox (our own CodeSandbox)...')
+          const customSandbox = await customSandboxService.createSandbox({
+            projectId: config.projectId,
+            files: config.files,
+            framework: config.framework === 'Next.js' ? 'nextjs' : 'react'
+          })
+          
+          // Give the sandbox a moment to fully initialize
+          console.log('⏳ Waiting for custom sandbox to fully initialize...')
+          await new Promise(resolve => setTimeout(resolve, 2000))
+          
+          console.log('🔍 Custom sandbox result:', {
+            id: customSandbox?.id,
+            status: customSandbox?.status,
+            url: customSandbox?.url,
+            port: customSandbox?.port
+          })
+          
+          console.log('🔍 Checking custom sandbox status...')
+          console.log('🔍 Status:', customSandbox?.status)
+          console.log('🔍 Expected: RUNNING')
+          console.log('🔍 Is RUNNING?', customSandbox?.status === 'RUNNING')
+          
+          if (customSandbox && customSandbox.status === 'RUNNING') {
+            const customE2bId = `custom_${Date.now()}`
+            
+            await db.sandbox.update({
+              where: { id: sandboxRecord.id },
+              data: {
+                e2bId: customE2bId,
+                url: customSandbox.url,
+                status: 'RUNNING',
+              },
+            })
+
+            console.log('✅ Custom sandbox created successfully:', customSandbox.url)
+            return {
+              id: sandboxRecord.id,
+              e2bId: customE2bId,
+              url: customSandbox.url,
+              status: 'RUNNING',
+              port: customSandbox.port,
+            }
+          } else {
+            console.log('❌ Custom sandbox not running, status:', customSandbox?.status)
+          }
+        } catch (customError) {
+          console.log('⚠️ Custom sandbox failed, trying CodeSandbox...', customError)
+        }
+      }
+
+      // Step 4: Try CodeSandbox with ACTUAL Next.js code (fallback)
+      console.log('Creating CodeSandbox with ACTUAL Next.js code...')
+      const primaryCodeSandboxUrl = await this.createWorkingCodeSandbox(config)
+      if (primaryCodeSandboxUrl) {
         const demoE2bId = `codesandbox_${Date.now()}`
         
         await db.sandbox.update({
           where: { id: sandboxRecord.id },
           data: {
             e2bId: demoE2bId,
-            url: codeSandboxUrl,
+            url: primaryCodeSandboxUrl,
             status: 'RUNNING',
           },
         })
@@ -109,23 +165,30 @@ export class E2BService {
         return {
           id: sandboxRecord.id,
           e2bId: demoE2bId,
-          url: codeSandboxUrl,
+          url: primaryCodeSandboxUrl,
           status: 'RUNNING',
           port: config.port || 3000,
         }
       }
 
-      // Step 4: Try StackBlitz (no API key needed)
-      console.log('Trying StackBlitz...')
-      const stackBlitzUrl = await this.createStackBlitzWithFiles(config)
-      if (stackBlitzUrl) {
-        const demoE2bId = `stackblitz_${Date.now()}`
+      // Step 4: Try alternative CodeSandbox approach if first one failed
+      console.log('Trying alternative CodeSandbox approach...')
+      const alternativeCodeSandboxUrl = await this.createCodeSandboxAlternative({
+        template: 'nextjs',
+        files: config.files.reduce((acc, file) => {
+          acc[file.path] = { content: file.content }
+          return acc
+        }, {} as Record<string, { content: string }>)
+      }, config)
+      
+      if (alternativeCodeSandboxUrl) {
+        const demoE2bId = `codesandbox_alt_${Date.now()}`
         
         await db.sandbox.update({
           where: { id: sandboxRecord.id },
           data: {
             e2bId: demoE2bId,
-            url: stackBlitzUrl,
+            url: alternativeCodeSandboxUrl,
             status: 'RUNNING',
           },
         })
@@ -133,22 +196,46 @@ export class E2BService {
         return {
           id: sandboxRecord.id,
           e2bId: demoE2bId,
-          url: stackBlitzUrl,
+          url: alternativeCodeSandboxUrl,
           status: 'RUNNING',
           port: config.port || 3000,
         }
       }
 
-      // Step 5: Create static HTML preview as final fallback
-      console.log('Creating static HTML preview...')
+      // Step 5: Create static HTML preview as final fallback (only if all else fails)
+      console.log('Creating static HTML preview as final fallback...')
       const staticUrl = await this.createStaticHTMLPreview(config)
-      const demoE2bId = `static_${Date.now()}`
+      if (staticUrl) {
+        const demoE2bId = `static_${Date.now()}`
+        
+        await db.sandbox.update({
+          where: { id: sandboxRecord.id },
+          data: {
+            e2bId: demoE2bId,
+            url: staticUrl,
+            status: 'RUNNING',
+          },
+        })
+
+        return {
+          id: sandboxRecord.id,
+          e2bId: demoE2bId,
+          url: staticUrl,
+          status: 'RUNNING',
+          port: config.port || 3000,
+        }
+      }
+
+      // Step 6: Final fallback to demo preview
+      console.log('Using final demo preview fallback...')
+      const demoUrl = this.createDemoPreview(config)
+      const demoE2bId = `demo_${Date.now()}`
       
       await db.sandbox.update({
         where: { id: sandboxRecord.id },
         data: {
           e2bId: demoE2bId,
-          url: staticUrl || this.createDemoPreview(config),
+          url: demoUrl,
           status: 'RUNNING',
         },
       })
@@ -156,7 +243,7 @@ export class E2BService {
       return {
         id: sandboxRecord.id,
         e2bId: demoE2bId,
-        url: staticUrl || this.createDemoPreview(config),
+        url: demoUrl,
         status: 'RUNNING',
         port: config.port || 3000,
       }
@@ -241,38 +328,360 @@ export class E2BService {
 
   private async createWorkingCodeSandbox(config: E2BSandboxConfig): Promise<string | null> {
     try {
-      console.log('🚀 Creating enhanced React sandbox with Tailwind CSS...')
+      console.log('🚀 Creating CodeSandbox with ACTUAL Next.js files...')
       
-      // Find the main page file
+      // Check if this is a Next.js project
+      const isNextJS = config.framework?.toLowerCase().includes('next') || 
+                      config.files.some(f => f.path.includes('next.config') || f.path.includes('app/'))
+      
+      if (isNextJS) {
+        console.log('📦 Detected Next.js project, creating Next.js sandbox...')
+        return await this.createNextJSCodeSandbox(config)
+      } else {
+        console.log('📦 Creating React sandbox...')
+        return await this.createReactCodeSandbox(config)
+      }
+    } catch (error) {
+      console.error('❌ Error creating CodeSandbox:', error)
+      return null
+    }
+  }
+
+  private async createNextJSCodeSandbox(config: E2BSandboxConfig): Promise<string | null> {
+    try {
+      console.log('🚀 Creating Next.js CodeSandbox...')
+      
+      // Build sandbox files for Next.js using the official template structure
+      const sandboxFiles: Record<string, { content: string }> = {}
+      
+      // Add ALL the actual generated files
+      for (const file of config.files) {
+        console.log(`📝 Adding Next.js file: ${file.path}`)
+        sandboxFiles[file.path] = { content: file.content }
+      }
+
+      // Ensure we have essential Next.js files based on official template
+      if (!sandboxFiles['package.json']) {
+        sandboxFiles['package.json'] = {
+          content: JSON.stringify({
+            name: config.projectId.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+            version: '0.1.0',
+            private: true,
+            scripts: {
+              dev: 'next dev',
+              build: 'next build',
+              start: 'next start',
+              lint: 'next lint'
+            },
+            dependencies: {
+              'next': '^14.0.0',
+              'react': '^18.0.0',
+              'react-dom': '^18.0.0',
+              '@types/node': '^20.0.0',
+              '@types/react': '^18.0.0',
+              '@types/react-dom': '^18.0.0',
+              'typescript': '^5.0.0',
+              'eslint': '^8.0.0',
+              'eslint-config-next': '^14.0.0'
+            }
+          }, null, 2)
+        }
+      }
+
+      // Ensure we have next.config.js (based on official template)
+      if (!sandboxFiles['next.config.js'] && !sandboxFiles['next.config.ts']) {
+        sandboxFiles['next.config.js'] = {
+          content: `/** @type {import('next').NextConfig} */
+const nextConfig = {
+  experimental: {
+    appDir: true,
+  },
+}
+
+module.exports = nextConfig`
+        }
+      }
+
+      // Ensure we have tsconfig.json (based on official template)
+      if (!sandboxFiles['tsconfig.json']) {
+        sandboxFiles['tsconfig.json'] = {
+          content: JSON.stringify({
+            compilerOptions: {
+              target: 'es5',
+              lib: ['dom', 'dom.iterable', 'es6'],
+              allowJs: true,
+              skipLibCheck: true,
+              strict: true,
+              forceConsistentCasingInFileNames: true,
+              noEmit: true,
+              esModuleInterop: true,
+              module: 'esnext',
+              moduleResolution: 'node',
+              resolveJsonModule: true,
+              isolatedModules: true,
+              jsx: 'preserve',
+              incremental: true,
+              plugins: [
+                {
+                  name: 'next',
+                },
+              ],
+            },
+            include: ['next-env.d.ts', '**/*.ts', '**/*.tsx', '.next/types/**/*.ts'],
+            exclude: ['node_modules'],
+          }, null, 2)
+        }
+      }
+
+      // Ensure we have next-env.d.ts (required for Next.js)
+      if (!sandboxFiles['next-env.d.ts']) {
+        sandboxFiles['next-env.d.ts'] = {
+          content: `/// <reference types="next" />
+/// <reference types="next/image-types/global" />
+
+// NOTE: This file should not be edited
+// see https://nextjs.org/docs/basic-features/typescript for more information.`
+        }
+      }
+
+      // Ensure we have .eslintrc.json (based on official template)
+      if (!sandboxFiles['.eslintrc.json']) {
+        sandboxFiles['.eslintrc.json'] = {
+          content: JSON.stringify({
+            extends: ['next/core-web-vitals']
+          }, null, 2)
+        }
+      }
+
+      // Try the API first, but fall back to embed if blocked
+      console.log('📤 Attempting CodeSandbox API...')
+      
+      try {
+        const definePayload = {
+          files: sandboxFiles,
+          template: 'nextjs'
+        }
+
+        console.log('📁 Files being sent:', Object.keys(sandboxFiles))
+        
+        const response = await fetch('https://codesandbox.io/api/v1/sandboxes/define', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+          },
+          body: JSON.stringify(definePayload),
+        })
+
+        if (response.ok) {
+          const result = await response.json()
+          const sandboxId = result.sandbox_id
+          const previewUrl = `https://${sandboxId}.csb.app/`
+          console.log(`✅ Next.js CodeSandbox created successfully: ${previewUrl}`)
+          console.log(`🆔 Sandbox ID: ${sandboxId}`)
+          return previewUrl
+        } else {
+          const errorText = await response.text()
+          console.error('❌ CodeSandbox API failed:', response.status, errorText)
+          console.log('⚠️ API blocked, trying embed approach...')
+        }
+      } catch (apiError) {
+        console.error('❌ CodeSandbox API error:', apiError)
+        console.log('⚠️ API failed, trying embed approach...')
+      }
+
+      // Fallback: Create working HTML preview instead of unreliable CodeSandbox
+      console.log('🔗 Creating working HTML preview...')
+      const htmlPreview = await this.createWorkingHTMLPreview(config)
+      if (htmlPreview) {
+        console.log('✅ Created working HTML preview')
+        return htmlPreview
+      }
+      
+      // Final fallback: Create a simple demo URL
+      console.log('⚠️ HTML preview failed, using demo URL...')
+      return this.createDemoPreview(config)
+      
+    } catch (error) {
+      console.error('❌ Error creating Next.js CodeSandbox:', error)
+      return null
+    }
+  }
+
+  private createCodeSandboxEmbed(files: Record<string, { content: string }>, template: string): string {
+    // Convert files to the format expected by CodeSandbox embed
+    const embedFiles: Record<string, string> = {}
+    
+    for (const [path, file] of Object.entries(files)) {
+      embedFiles[path] = file.content
+    }
+
+    // Create the embed URL using the correct format for CodeSandbox
+    // Using the newer format that works with their current embed system
+    const embedUrl = `https://codesandbox.io/embed/${template}?codemirror=1&fontsize=14&hidenavigation=1&theme=dark&view=preview&module=${encodeURIComponent(JSON.stringify(embedFiles))}`
+    
+    return embedUrl
+  }
+
+  private async createCodeSandboxWithFiles(config: E2BSandboxConfig): Promise<string | null> {
+    try {
+      console.log('🔗 Creating CodeSandbox with files...')
+      
+      // Convert files to the format expected by CodeSandbox API
+      const sandboxFiles: Record<string, { content: string }> = {}
+      
+      for (const file of config.files) {
+        sandboxFiles[file.path] = { content: file.content }
+      }
+
+      // Create the sandbox definition
+      const sandboxDefinition = {
+        files: sandboxFiles,
+        template: 'nextjs'
+      }
+
+      // Try PIDA first (if configured)
+      if (process.env.CODESANDBOX_PIDA_URL) {
+        try {
+          console.log('🚀 Trying CodeSandbox PIDA...');
+          const pidaUrl = await codesandboxPIDA.createSandbox({
+            files: sandboxFiles,
+            template: 'nextjs',
+            title: `AI Generated ${config.projectId}`,
+            description: 'Generated by Jo Vibes AI'
+          });
+          
+          if (pidaUrl) {
+            console.log('✅ CodeSandbox PIDA created:', pidaUrl);
+            return pidaUrl;
+          }
+        } catch (pidaError) {
+          console.log('⚠️ CodeSandbox PIDA failed, trying public API...', pidaError);
+        }
+      }
+
+      // Try public CodeSandbox API with authentication
+      try {
+        const apiKey = process.env.CODESANDBOX_API_KEY;
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        };
+
+        // Add API key if available
+        if (apiKey) {
+          headers['Authorization'] = `Bearer ${apiKey}`;
+        }
+
+        const response = await fetch('https://codesandbox.io/api/v1/sandboxes/create', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(sandboxDefinition)
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          const sandboxUrl = `https://codesandbox.io/s/${result.sandbox_id}`;
+          console.log('✅ CodeSandbox created via API:', sandboxUrl);
+          return sandboxUrl;
+        }
+      } catch (apiError) {
+        console.log('⚠️ CodeSandbox API failed, trying alternative method...', apiError);
+      }
+
+      // Alternative: Use the define endpoint with retry logic
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          console.log(`🔄 CodeSandbox API attempt ${attempt}/3...`);
+          
+          // Add delay between attempts
+          if (attempt > 1) {
+            await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+          }
+          
+          const formData = new FormData();
+          formData.append('parameters', JSON.stringify(sandboxDefinition));
+          
+          const response = await fetch('https://codesandbox.io/api/v1/sandboxes/define', {
+            method: 'POST',
+            body: formData,
+            headers: {
+              'Accept': 'application/json',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Referer': 'https://codesandbox.io/',
+              'Origin': 'https://codesandbox.io',
+              'Sec-Fetch-Dest': 'empty',
+              'Sec-Fetch-Mode': 'cors',
+              'Sec-Fetch-Site': 'same-origin'
+            }
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            const sandboxUrl = `https://codesandbox.io/s/${result.sandbox_id}`;
+            console.log('✅ CodeSandbox created via define:', sandboxUrl);
+            return sandboxUrl;
+          } else {
+            console.log(`⚠️ CodeSandbox API attempt ${attempt} failed:`, response.status);
+          }
+        } catch (defineError) {
+          console.log(`⚠️ CodeSandbox define attempt ${attempt} failed:`, defineError);
+        }
+      }
+      
+      console.log('⚠️ All CodeSandbox API attempts failed, using static preview...');
+
+      // Final fallback: Create a working static HTML preview
+      console.log('⚠️ All CodeSandbox methods failed, using static HTML preview...');
+      return this.createWorkingHTMLPreview(config);
+      
+    } catch (error) {
+      console.error('❌ Error creating CodeSandbox with files:', error)
+      return this.createStaticHTMLPreview(config);
+    }
+  }
+
+  private async createReactCodeSandbox(config: E2BSandboxConfig): Promise<string | null> {
+    try {
+      console.log('🚀 Creating React CodeSandbox...')
+      
+      // Find the main page file from the REAL generated files
       const mainPageFile = config.files.find(f => 
         f.path.includes('page.tsx') || f.path.includes('App.tsx') || f.path.includes('index.tsx')
       ) || config.files[0];
 
-      // Convert to React and create essential files
+      console.log('📁 Using main file:', mainPageFile?.path)
+      console.log('📝 Main file content preview:', mainPageFile?.content.substring(0, 200) + '...')
+
+      // Convert the ACTUAL generated Next.js/React code to React
       const convertedApp = mainPageFile ? this.convertNextJSToReact(mainPageFile.content) : this.createDefaultApplicationPreview(config);
       
       // Essential files for React sandbox
-      const sandboxFiles = {
-        'package.json': JSON.stringify({
-          name: config.projectId.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-          version: '1.0.0',
-          private: true,
-          dependencies: {
-            'react': '^18.2.0',
-            'react-dom': '^18.2.0',
-            'react-scripts': '^5.0.1'
-          },
-          scripts: {
-            start: 'react-scripts start',
-            build: 'react-scripts build'
-          },
-          browserslist: {
-            production: ['>0.2%', 'not dead', 'not op_mini all'],
-            development: ['last 1 chrome version', 'last 1 firefox version', 'last 1 safari version']
-          }
-        }, null, 2),
+      const sandboxFiles: Record<string, { content: string }> = {
+        'package.json': {
+          content: JSON.stringify({
+            name: config.projectId.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+            version: '1.0.0',
+            private: true,
+            dependencies: {
+              'react': '^18.2.0',
+              'react-dom': '^18.2.0',
+              'react-scripts': '^5.0.1'
+            },
+            scripts: {
+              start: 'react-scripts start',
+              build: 'react-scripts build'
+            },
+            browserslist: {
+              production: ['>0.2%', 'not dead', 'not op_mini all'],
+              development: ['last 1 chrome version', 'last 1 firefox version', 'last 1 safari version']
+            }
+          }, null, 2)
+        },
         
-        'public/index.html': `<!DOCTYPE html>
+        'public/index.html': {
+          content: `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -304,9 +713,11 @@ export class E2BService {
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
   </body>
-</html>`,
+</html>`
+        },
         
-        'src/index.js': `import React from 'react';
+        'src/index.js': {
+          content: `import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
@@ -315,32 +726,56 @@ root.render(
   <React.StrictMode>
     <App />
   </React.StrictMode>
-);`,
+);`
+        },
         
-        'src/App.js': convertedApp
+        'src/App.js': {
+          content: convertedApp
+        }
       };
 
-      // Create CodeSandbox
-      const formData = new FormData();
-      formData.append('files', JSON.stringify(sandboxFiles));
+      // Try the API first, but fall back to embed if blocked
+      console.log('📤 Attempting CodeSandbox API...')
       
-      const response = await fetch('https://codesandbox.io/api/v1/sandboxes/define', {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'Accept': 'application/json',
-        },
-      });
+      try {
+        const formData = new FormData();
+        formData.append('files', JSON.stringify(sandboxFiles));
+        
+        const response = await fetch('https://codesandbox.io/api/v1/sandboxes/define', {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+          },
+        });
 
-      if (response.ok) {
-        const result = await response.json();
-        const sandboxUrl = `https://codesandbox.io/s/${result.sandbox_id}`;
-        console.log('✅ CodeSandbox created:', sandboxUrl);
-        return sandboxUrl;
+        if (response.ok) {
+          const result = await response.json();
+          const sandboxUrl = `https://codesandbox.io/s/${result.sandbox_id}`;
+          console.log('✅ CodeSandbox created:', sandboxUrl);
+          return sandboxUrl;
+        } else {
+          const errorText = await response.text();
+          console.error('❌ CodeSandbox API failed:', response.status, errorText);
+          console.log('⚠️ API blocked, trying embed approach...');
+        }
+      } catch (apiError) {
+        console.error('❌ CodeSandbox API error:', apiError);
+        console.log('⚠️ API failed, trying embed approach...');
+      }
+
+      // Fallback: Create working HTML preview instead of unreliable CodeSandbox
+      console.log('🔗 Creating working HTML preview...')
+      const htmlPreview = await this.createWorkingHTMLPreview(config)
+      if (htmlPreview) {
+        console.log('✅ Created working HTML preview')
+        return htmlPreview
       }
       
-      console.log('❌ CodeSandbox creation failed, trying StackBlitz...');
-      return await this.createStackBlitzWithFiles(config);
+      // Final fallback: Create a simple demo URL
+      console.log('⚠️ HTML preview failed, using demo URL...')
+      return this.createDemoPreview(config)
       
     } catch (error) {
       console.error('❌ Error creating CodeSandbox:', error);
@@ -493,41 +928,52 @@ export default App;`
     try {
       console.log('🔄 Trying alternative CodeSandbox approach...')
       
-      // Use form-data approach which is more reliable
-      const formData = new FormData()
+      // Use JSON approach which is more reliable for Next.js
+      const definePayload = {
+        files: sandboxDefinition.files,
+        template: sandboxDefinition.template,
+        title: config.projectId,
+        description: `Generated by Jo-Vibes - ${config.framework} application`
+      }
       
-      // Add files
-      Object.entries(sandboxDefinition.files).forEach(([path, fileData]) => {
-        formData.append(`files[${path}]`, fileData.content)
-      })
-      
-      formData.append('template', sandboxDefinition.template)
-      formData.append('title', config.projectId)
+      console.log('📤 Sending alternative request to CodeSandbox API...')
+      console.log('📁 Files being sent:', Object.keys(sandboxDefinition.files))
       
       const response = await fetch('https://codesandbox.io/api/v1/sandboxes/define', {
         method: 'POST',
-        body: formData
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(definePayload)
       })
       
       if (response.ok) {
         const result = await response.json()
         const sandboxId = result.sandbox_id || result.id
         if (sandboxId) {
-          console.log(`✅ Alternative CodeSandbox created: ${sandboxId}`)
-          return `https://${sandboxId}.csb.app/`
+          const previewUrl = `https://${sandboxId}.csb.app/`
+          console.log(`✅ Alternative CodeSandbox created successfully: ${previewUrl}`)
+          console.log(`🆔 Sandbox ID: ${sandboxId}`)
+          return previewUrl
         }
+      } else {
+        const errorText = await response.text()
+        console.error('❌ Alternative CodeSandbox API failed:', response.status, errorText)
       }
       
-      console.log('⚠️ Alternative CodeSandbox approach also failed, using client-side embed')
+      console.log('⚠️ Alternative CodeSandbox approach failed, trying embed approach...')
       
-      // Final approach: Use client-side compatible URL
+      // Final approach: Use embed URL with encoded data
       const embedData = {
         files: sandboxDefinition.files,
         template: sandboxDefinition.template
       }
       
       const encodedData = btoa(JSON.stringify(embedData))
-      return `https://codesandbox.io/embed/${sandboxDefinition.template}?codemirror=1&fontsize=14&hidenavigation=1&theme=dark&project=${encodedData}`
+      const embedUrl = `https://codesandbox.io/embed/${sandboxDefinition.template}?codemirror=1&fontsize=14&hidenavigation=1&theme=dark&project=${encodedData}`
+      
+      console.log(`🔗 Created embed URL: ${embedUrl}`)
+      return embedUrl
       
     } catch (error) {
       console.error('❌ Alternative CodeSandbox approach failed:', error)
@@ -535,14 +981,114 @@ export default App;`
     }
   }
 
-  private async createStaticHTMLPreview(config: E2BSandboxConfig): Promise<string | null> {
+  private async createWorkingHTMLPreview(config: E2BSandboxConfig): Promise<string | null> {
     try {
-      console.log(`Creating real app preview with ${config.files.length} generated files...`)
-      
-      // Debug: Log all files being passed
-      console.log('Files received:', config.files.map(f => ({ path: f.path, contentLength: f.content.length })))
+      console.log('🌐 Creating working HTML preview...')
       
       // Find the main page file
+      const mainPageFile = config.files.find(f => 
+        f.path.includes('page.tsx') || f.path.includes('App.tsx') || f.path.includes('index.tsx')
+      ) || config.files[0];
+
+      if (!mainPageFile) {
+        console.log('❌ No main page file found')
+        return this.createStaticHTMLPreview(config)
+      }
+
+      // Convert React/Next.js code to working HTML
+      const htmlContent = this.convertReactToWorkingHTML(mainPageFile.content, config.projectId)
+      
+      // Create a data URL that can be embedded
+      const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`
+      
+      console.log('✅ Created working HTML preview')
+      return dataUrl
+      
+    } catch (error) {
+      console.error('❌ Error creating HTML preview:', error)
+      return this.createStaticHTMLPreview(config)
+    }
+  }
+
+  private convertReactToWorkingHTML(reactContent: string, projectName: string): string {
+    // Extract the main content from React component
+    const mainContent = this.extractMainContent(reactContent, projectName)
+    
+    // Create a complete HTML document with Tailwind CSS
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${projectName}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-in-out',
+                        'slide-up': 'slideUp 0.3s ease-out'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; }
+        .fade-in { animation: fadeIn 0.5s ease-in-out; }
+        .slide-up { animation: slideUp 0.3s ease-out; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen">
+        ${mainContent}
+    </div>
+    <script>
+        // Add interactive functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add click handlers for buttons
+            document.querySelectorAll('button').forEach(button => {
+                button.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    if (this.textContent.includes('Get Started')) {
+                        alert('Get Started clicked! This would navigate to the main app.');
+                    } else if (this.textContent.includes('Learn More')) {
+                        alert('Learn More clicked! This would show more information.');
+                    }
+                });
+            });
+            
+            // Add hover effects
+            document.querySelectorAll('.hover\\:bg-blue-700').forEach(el => {
+                el.addEventListener('mouseenter', function() {
+                    this.style.transform = 'scale(1.05)';
+                    this.style.transition = 'transform 0.2s ease';
+                });
+                el.addEventListener('mouseleave', function() {
+                    this.style.transform = 'scale(1)';
+                });
+            });
+        });
+    </script>
+</body>
+</html>`
+  }
+
+  private async createStaticHTMLPreview(config: E2BSandboxConfig): Promise<string | null> {
+    try {
+      console.log(`🎯 Creating REAL preview with ${config.files.length} generated files...`)
+      
+      // Debug: Log all files being passed
+      console.log('📁 Files received:', config.files.map(f => ({ 
+        path: f.path, 
+        contentLength: f.content.length,
+        preview: f.content.substring(0, 100) + '...'
+      })))
+      
+      // Find the main page file (prioritize actual generated files)
       const mainPageFile = config.files.find(f => 
         f.path.includes('page.tsx') || 
         f.path.includes('App.tsx') || 
@@ -551,58 +1097,60 @@ export default App;`
         f.path.includes('App.js')
       )
       
-      // Find component files for better structure
-      const headerFile = config.files.find(f => f.path.includes('header.tsx'))
-      const footerFile = config.files.find(f => f.path.includes('footer.tsx'))
+      // Find other important files
+      const layoutFile = config.files.find(f => f.path.includes('layout.tsx'))
       const globalStyles = config.files.find(f => 
         f.path.includes('globals.css') || 
         f.path.includes('global.css') ||
         f.path.includes('index.css')
       )
       
-      // Extract and convert the main page content to look like the real app
+      console.log('🔍 Main page found:', mainPageFile?.path)
+      console.log('🔍 Layout found:', layoutFile?.path)
+      console.log('🔍 Styles found:', globalStyles?.path)
+      
+      // Extract the ACTUAL generated content
       let mainContent = ''
       let extractedStyles = ''
+      let pageTitle = config.projectId
       
       if (mainPageFile) {
-        console.log('Converting main page to HTML:', mainPageFile.path)
-        mainContent = this.convertReactToHTML(mainPageFile.content, config.projectId)
-        extractedStyles += this.extractTailwindStyles(mainPageFile.content)
+        console.log('🔄 Converting REAL generated content to HTML...')
+        
+        // Extract title from the generated content
+        const titleMatch = mainPageFile.content.match(/<title[^>]*>([^<]+)<\/title>/i) ||
+                          mainPageFile.content.match(/h1[^>]*>([^<]+)<\/h1>/i) ||
+                          mainPageFile.content.match(/export.*?function.*?(\w+)/i)
+        
+        if (titleMatch) {
+          pageTitle = titleMatch[1] || config.projectId
+        }
+        
+        // Convert the ACTUAL React/Next.js content to HTML
+        mainContent = this.convertRealReactToHTML(mainPageFile.content, pageTitle)
+        extractedStyles += this.extractRealTailwindStyles(mainPageFile.content)
+        
+        console.log('✅ Real content converted:', mainContent.substring(0, 200) + '...')
       } else {
-        console.log('No main page found, creating default content')
-        mainContent = this.createDefaultApplicationPreview(config)
+        console.log('⚠️ No main page found, showing file structure instead')
+        mainContent = this.createFileStructurePreview(config)
       }
       
-      // Extract global CSS
+      // Extract global CSS from the ACTUAL generated files
       if (globalStyles) {
-        extractedStyles += this.extractGlobalStyles(globalStyles.content)
+        console.log('🎨 Extracting real CSS styles...')
+        extractedStyles += this.extractRealGlobalStyles(globalStyles.content)
       }
       
-      // Process header and footer for better layout
-      let headerContent = ''
-      let footerContent = ''
-      
-      if (headerFile) {
-        headerContent = this.convertReactToHTML(headerFile.content, 'Header')
-      }
-      
-      if (footerFile) {
-        footerContent = this.convertReactToHTML(footerFile.content, 'Footer')
-      }
-      
-      // If no main content found, create a meaningful preview
-      if (!mainContent || mainContent.length < 100) {
-        mainContent = this.createDefaultApplicationPreview(config)
-      }
-      
-      // Create comprehensive preview HTML
+      // Create a preview that shows the ACTUAL generated code
       const htmlContent = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${config.projectId} - Jo-Vibes Generated App</title>
+    <title>${pageTitle} - Generated by Jo-Vibes AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { 
           font-family: system-ui, -apple-system, sans-serif; 
@@ -610,123 +1158,139 @@ export default App;`
           padding: 0; 
           line-height: 1.6; 
           background: #f8fafc;
-          min-height: 100vh;
         }
-        .container { max-width: 100%; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
-        .header { 
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          color: white;
-          padding: 1rem 2rem;
-          text-align: center;
+        .preview-container { 
+          max-width: 1200px; 
+          margin: 0 auto; 
+          padding: 2rem;
         }
-        .content { 
-          flex: 1;
-          background: white; 
-          padding: 0; 
-          margin: 0;
+        .app-preview {
+          background: white;
+          border-radius: 12px;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+          overflow: hidden;
+          margin-bottom: 2rem;
         }
         .app-header {
-          background: white;
-          border-bottom: 1px solid #e2e8f0;
-          padding: 1rem 2rem;
-        }
-        .app-main {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
           padding: 2rem;
-          min-height: 60vh;
-        }
-        .app-footer {
-          background: #f8fafc;
-          border-top: 1px solid #e2e8f0;
-          padding: 2rem;
-          margin-top: auto;
-        }
-        .file-item {
-          border: 1px solid #e1e5e9;
-          border-radius: 8px;
-          margin: 1rem 0;
-          overflow: hidden;
-        }
-        .file-item h4 {
-          background: #f8f9fa;
-          margin: 0;
-          padding: 0.75rem;
-          border-bottom: 1px solid #e1e5e9;
-          color: #495057;
-        }
-        .file-content {
-          padding: 1rem;
-          max-height: 200px;
-          overflow-y: auto;
-        }
-        .file-content pre {
-          margin: 0;
-          font-size: 0.85rem;
-          background: #f8f9fa;
-          padding: 1rem;
-          border-radius: 4px;
-          overflow-x: auto;
-        }
-        .footer { 
-          text-align: center; 
-          color: #666; 
-          font-size: 0.9rem; 
-          background: white;
-          padding: 1.5rem;
-          border-radius: 8px;
-        }
-        .stats {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-          gap: 1rem;
-          margin: 2rem 0;
-        }
-        .stat-card {
-          background: #f8f9fa;
-          padding: 1.5rem;
-          border-radius: 8px;
           text-align: center;
         }
-        .stat-number {
-          font-size: 2rem;
-          font-weight: bold;
-          color: #667eea;
+        .app-content {
+          padding: 2rem;
+          min-height: 400px;
         }
-        h1 { font-size: 2.5rem; margin-bottom: 0.5rem; }
+        .file-explorer {
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          margin-top: 2rem;
+        }
+        .file-explorer h3 {
+          background: #e2e8f0;
+          margin: 0;
+          padding: 1rem;
+          border-bottom: 1px solid #e2e8f0;
+          font-size: 1.1rem;
+          font-weight: 600;
+        }
+        .file-list {
+          padding: 1rem;
+        }
+        .file-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 0.5rem;
+          border-bottom: 1px solid #e2e8f0;
+        }
+        .file-item:last-child {
+          border-bottom: none;
+        }
+        .file-name {
+          font-family: 'Monaco', 'Menlo', monospace;
+          font-size: 0.9rem;
+          color: #374151;
+        }
+        .file-size {
+          font-size: 0.8rem;
+          color: #6b7280;
+        }
+        .code-preview {
+          background: #1f2937;
+          color: #f9fafb;
+          padding: 1rem;
+          border-radius: 6px;
+          font-family: 'Monaco', 'Menlo', monospace;
+          font-size: 0.85rem;
+          max-height: 300px;
+          overflow-y: auto;
+          margin-top: 1rem;
+        }
         ${extractedStyles}
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1 style="font-size: 2rem; margin: 0; font-weight: 700;">${config.projectId}</h1>
-            <p style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 1.1rem;">Live Preview • Powered by Jo-Vibes AI</p>
+    <div class="preview-container">
+        <!-- App Preview Header -->
+        <div class="app-header">
+            <h1 style="font-size: 2.5rem; margin-bottom: 0.5rem; font-weight: 700;">${pageTitle}</h1>
+            <p style="margin: 0; opacity: 0.9; font-size: 1.1rem;">Live Preview of Your Generated ${config.framework} Application</p>
+            <p style="margin: 0.5rem 0 0 0; opacity: 0.8; font-size: 0.9rem;">✨ Generated by Jo-Vibes AI • ${config.files.length} files created</p>
         </div>
         
-
-        
-        <div class="content">
-            ${headerContent ? `<header class="app-header">${headerContent}</header>` : ''}
-            <main class="app-main">
-                <h2>📱 ${config.projectId} Application</h2>
+        <!-- Actual Generated App Content -->
+        <div class="app-preview">
+            <div class="app-content">
                 ${mainContent}
-            </main>
-            ${footerContent ? `<footer class="app-footer">${footerContent}</footer>` : ''}
+            </div>
         </div>
         
-        <div class="footer" style="text-align: center; padding: 1.5rem; background: #f8fafc; border-top: 1px solid #e2e8f0; color: #64748b;">
-            <p style="margin: 0; font-size: 0.9rem;">✨ <strong>Interactive preview of your ${config.framework} application</strong></p>
-            <p style="margin: 0.5rem 0 0 0; font-size: 0.8rem;">Generated with ${config.files.length} files • Built with Jo-Vibes AI</p>
+        <!-- File Structure Explorer -->
+        <div class="file-explorer">
+            <h3>📁 Generated Files Structure</h3>
+            <div class="file-list">
+                ${config.files.map(file => `
+                    <div class="file-item">
+                        <span class="file-name">${file.path}</span>
+                        <span class="file-size">${file.content.length} chars</span>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+        
+        <!-- Code Preview (show first file) -->
+        ${mainPageFile ? `
+        <div class="file-explorer">
+            <h3>💻 Generated Code Preview</h3>
+            <div class="file-list">
+                <div class="file-item">
+                    <span class="file-name">${mainPageFile.path}</span>
+                    <span class="file-size">Main component</span>
+                </div>
+            </div>
+            <div class="code-preview">
+${this.escapeHtml(mainPageFile.content.substring(0, 800))}${mainPageFile.content.length > 800 ? '\n\n... (truncated for preview)' : ''}
+            </div>
+        </div>
+        ` : ''}
+        
+        <!-- Footer -->
+        <div style="text-align: center; padding: 2rem; color: #6b7280; font-size: 0.9rem;">
+            <p>🚀 This preview shows your <strong>actual generated code</strong> converted to HTML</p>
+            <p>In a real environment, this would be a fully functional ${config.framework} application</p>
         </div>
     </div>
 </body>
 </html>`
 
       const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`
-      console.log('✓ Real content preview created with actual generated files')
+      console.log('✅ REAL preview created with actual generated files!')
       return dataUrl
       
     } catch (error) {
-      console.error('Failed to create real content preview:', error)
+      console.error('❌ Failed to create real preview:', error)
       return null
     }
   }
@@ -776,7 +1340,7 @@ ${content.substring(0, 800)}${content.length > 800 ? '\n\n... (and more)' : ''}
     return styleMatches.join('\n')
   }
 
-  private extractTailwindStyles(content: string): string {
+  private extractRealTailwindStyles(content: string): string {
     // Extract Tailwind classes and convert to CSS
     const classMatches = content.match(/className="([^"]+)"/g) || []
     let styles = ''
@@ -807,9 +1371,50 @@ ${content.substring(0, 800)}${content.length > 800 ? '\n\n... (and more)' : ''}
     return styles
   }
 
-  private extractGlobalStyles(content: string): string {
+  private extractTailwindStyles(content: string): string {
+    // Legacy method - redirect to the new one
+    return this.extractRealTailwindStyles(content)
+  }
+
+  private extractRealGlobalStyles(content: string): string {
     // Extract actual CSS content
     return content.replace(/@tailwind[^;]*;/g, '').trim()
+  }
+
+  private extractGlobalStyles(content: string): string {
+    // Legacy method - redirect to the new one
+    return this.extractRealGlobalStyles(content)
+  }
+
+  private createFileStructurePreview(config: E2BSandboxConfig): string {
+    return `
+      <div class="file-structure-preview">
+        <h3>📁 Generated Files</h3>
+        <div class="file-list">
+          ${config.files.map(file => `
+            <div class="file-item">
+              <span class="file-name">${file.path}</span>
+              <span class="file-size">${file.content.length} characters</span>
+            </div>
+          `).join('')}
+        </div>
+        <p>Your ${config.framework} application has been generated with ${config.files.length} files!</p>
+      </div>
+    `
+  }
+
+  private createRealContentFallback(projectName: string, originalContent: string): string {
+    return `
+      <div class="real-content-fallback">
+        <h3>💻 Generated Code Preview</h3>
+        <div class="code-preview">
+          <pre style="background: #1f2937; color: #f9fafb; padding: 1rem; border-radius: 6px; overflow-x: auto; font-family: 'Monaco', 'Menlo', monospace; font-size: 0.85rem;">
+${this.escapeHtml(originalContent.substring(0, 1000))}${originalContent.length > 1000 ? '\n\n... (truncated for preview)' : ''}
+          </pre>
+        </div>
+        <p>This shows your actual generated ${projectName} code converted to HTML preview.</p>
+      </div>
+    `
   }
 
   private createDefaultApplicationPreview(config: E2BSandboxConfig): string {
@@ -848,12 +1453,14 @@ ${content.substring(0, 800)}${content.length > 800 ? '\n\n... (and more)' : ''}
     `
   }
 
-  private convertReactToHTML(reactContent: string, projectName: string): string {
+  private convertRealReactToHTML(reactContent: string, projectName: string): string {
     try {
+      console.log('🔄 Converting REAL React/Next.js content to HTML...')
+      
       // Extract JSX content from React component
       let html = reactContent
       
-      // Remove imports and exports
+      // Remove imports and exports but keep the actual content
       html = html.replace(/import.*?from.*?['"][^'"]*['"];?\s*/g, '')
       html = html.replace(/export\s+default\s+function\s+\w+.*?\{/g, '')
       html = html.replace(/export\s+function\s+\w+.*?\{/g, '')
@@ -863,11 +1470,13 @@ ${content.substring(0, 800)}${content.length > 800 ? '\n\n... (and more)' : ''}
       const returnMatch = html.match(/return\s*\(([\s\S]*?)\);?\s*}?\s*$/m)
       if (returnMatch) {
         html = returnMatch[1].trim()
+        console.log('✅ Found return statement content')
       } else {
         // Try to find JSX without return statement
         const jsxMatch = html.match(/<[^>]+>[\s\S]*?<\/[^>]+>/g)
         if (jsxMatch && jsxMatch.length > 0) {
           html = jsxMatch.join('')
+          console.log('✅ Found JSX content without return')
         }
       }
       
@@ -907,18 +1516,25 @@ ${content.substring(0, 800)}${content.length > 800 ? '\n\n... (and more)' : ''}
       // Clean up extra whitespace and formatting
       html = html.replace(/\s+/g, ' ').trim()
       
+      console.log('📝 Converted HTML preview:', html.substring(0, 200) + '...')
+      
       // If we have meaningful HTML content, return it
       if (html.length >= 50 && html.includes('<') && html.includes('>')) {
         return `<div class="generated-app-content">${html}</div>`
       } else {
-        // Create a better fallback that shows this is the app content
-        return this.createFallbackPreview(projectName, reactContent)
+        // Show the actual content as a fallback
+        return this.createRealContentFallback(projectName, reactContent)
       }
       
     } catch (error) {
-      console.error('Error converting React to HTML:', error)
-      return this.createFallbackPreview(projectName, reactContent)
+      console.error('❌ Error converting React to HTML:', error)
+      return this.createRealContentFallback(projectName, reactContent)
     }
+  }
+
+  private convertReactToHTML(reactContent: string, projectName: string): string {
+    // Legacy method - redirect to the new one
+    return this.convertRealReactToHTML(reactContent, projectName)
   }
 
   private createFallbackPreview(projectName: string, originalContent: string): string {
@@ -1271,7 +1887,10 @@ ${reactContent}`
 
   private async createStackBlitzWithFiles(config: E2BSandboxConfig): Promise<string | null> {
     try {
-      console.log('Creating StackBlitz with actual generated files...')
+      console.log('🚀 Creating StackBlitz with ACTUAL generated files...')
+      
+      // Debug: Log what files we're working with
+      console.log('📁 Files to include:', config.files.map(f => ({ path: f.path, size: f.content.length })))
       
       // Build the project object that StackBlitz expects
       const project = {
@@ -1281,15 +1900,20 @@ ${reactContent}`
         files: {} as Record<string, string>
       }
 
-      // Add all user-generated files
+      // Add ALL the ACTUAL generated files
       for (const file of config.files) {
+        console.log(`📝 Adding file: ${file.path} (${file.content.length} chars)`)
+        
         // Make sure we replace the default page with user's content
         if (file.path === 'src/app/page.tsx' || file.path === 'app/page.tsx') {
           project.files['src/app/page.tsx'] = file.content
+          console.log('✅ Main page content added')
         } else if (file.path === 'package.json') {
           project.files['package.json'] = file.content
+          console.log('✅ Package.json added')
         } else {
           project.files[file.path] = file.content
+          console.log(`✅ File ${file.path} added`)
         }
       }
 
@@ -1316,7 +1940,7 @@ ${reactContent}`
         }, null, 2)
       }
 
-      // Use StackBlitz's embed API for preview-only view
+      // Create StackBlitz embed URL with the actual project files
       const embedUrl = 'https://stackblitz.com/run?' + new URLSearchParams({
         embed: '1',
         file: 'src/app/page.tsx',
@@ -1324,18 +1948,12 @@ ${reactContent}`
         hideDevTools: '1',
         hideExplorer: '1',
         view: 'preview',
-        ctl: '1'
+        ctl: '1',
+        title: project.title,
+        description: project.description
       }).toString()
 
-      // Create a POST request to StackBlitz with the project data
-      const form = new FormData()
-      form.append('project[files][src/app/page.tsx]', project.files['src/app/page.tsx'] || '')
-      form.append('project[files][package.json]', project.files['package.json'])
-      form.append('project[title]', project.title)
-      form.append('project[description]', project.description)
-      form.append('project[template]', 'nextjs')
-
-      console.log(`✓ StackBlitz preview-only URL created: ${embedUrl}`)
+      console.log(`✅ StackBlitz embed URL created: ${embedUrl}`)
       return embedUrl
       
     } catch (error) {

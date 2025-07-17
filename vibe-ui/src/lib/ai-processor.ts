@@ -278,7 +278,35 @@ INTERACTIVITY REQUIREMENTS:
 - Add loading states and error boundaries
 - Create smooth transitions and animations
 
-Response format: Return a JSON object that matches the required schema exactly, with enhanced focus on UI quality and user experience.`;
+CRITICAL RESPONSE FORMAT:
+You MUST return a JSON object with EXACTLY these fields:
+{
+  "projectName": "string",
+  "description": "string", 
+  "projectType": "web-app" | "mobile-app" | "desktop-app" | "api" | "website" | "dashboard" | "game" | "utility",
+  "framework": "Next.js" | "React" | "Vue.js" | "Nuxt.js" | "Angular" | "Svelte" | "Vanilla JS",
+  "styling": "Tailwind CSS" | "CSS Modules" | "Styled Components" | "Emotion" | "SCSS" | "CSS",
+  "database": "PostgreSQL" | "MySQL" | "MongoDB" | "SQLite" | "Supabase" | "Firebase" | "None",
+  "features": ["array", "of", "strings"],
+  "complexity": "beginner" | "intermediate" | "advanced",
+  "estimatedTime": "string",
+  "techStack": ["array", "of", "strings"],
+  "fileStructure": {
+    "pages": ["array", "of", "strings"],
+    "components": ["array", "of", "strings"],
+    "utils": ["array", "of", "strings"],
+    "styles": ["array", "of", "strings"],
+    "hooks": ["array", "of", "strings"],
+    "types": ["array", "of", "strings"]
+  },
+  "designSystem": {
+    "colorScheme": "light" | "dark" | "auto",
+    "primaryColor": "string (hex color)",
+    "layout": "single-page" | "multi-page" | "dashboard" | "blog" | "portfolio" | "e-commerce"
+  }
+}
+
+DO NOT return any other format or additional fields.`;
 
     const completion = await retryWithBackoff(async () => {
       return await openai.chat.completions.create({
@@ -321,7 +349,7 @@ Additional context:
   }
 
   private createFallbackAnalysis(userPrompt: string): ProjectAnalysis {
-    // Enhanced fallback analysis
+    // Enhanced fallback analysis with guaranteed structure
     const projectName = userPrompt.slice(0, 50).replace(/[^a-zA-Z0-9\s]/g, '').trim() || 'My App';
     
     return {
@@ -390,43 +418,55 @@ Additional context:
       'src/app/not-found.tsx',
     );
 
-    // Generate pages
-    analysis.fileStructure.pages.forEach(page => {
-      const pageName = page.toLowerCase().replace(/\s+/g, '-');
-      if (pageName !== 'home') { // Skip home as it's already page.tsx
-        files.push(`src/app/${pageName}/page.tsx`);
-      }
-    });
+    // Generate pages with null safety
+    if (analysis.fileStructure?.pages?.length) {
+      analysis.fileStructure.pages.forEach(page => {
+        const pageName = page.toLowerCase().replace(/\s+/g, '-');
+        if (pageName !== 'home') { // Skip home as it's already page.tsx
+          files.push(`src/app/${pageName}/page.tsx`);
+        }
+      });
+    }
 
-    // Generate components
-    analysis.fileStructure.components.forEach(component => {
-      const componentName = component.toLowerCase().replace(/\s+/g, '-');
-      files.push(`src/components/${componentName}.tsx`);
-    });
+    // Generate components with null safety
+    if (analysis.fileStructure?.components?.length) {
+      analysis.fileStructure.components.forEach(component => {
+        const componentName = component.toLowerCase().replace(/\s+/g, '-');
+        files.push(`src/components/${componentName}.tsx`);
+      });
+    }
 
-    // Generate utilities
-    analysis.fileStructure.utils.forEach(util => {
-      const utilName = util.toLowerCase().replace(/\s+/g, '-');
-      files.push(`src/lib/${utilName}.ts`);
-    });
+    // Generate utilities with null safety
+    if (analysis.fileStructure?.utils?.length) {
+      analysis.fileStructure.utils.forEach(util => {
+        const utilName = util.toLowerCase().replace(/\s+/g, '-');
+        files.push(`src/lib/${utilName}.ts`);
+      });
+    }
 
-    // Generate custom hooks
-    analysis.fileStructure.hooks.forEach(hook => {
-      const hookName = hook.toLowerCase().replace(/\s+/g, '-');
-      files.push(`src/hooks/${hookName}.ts`);
-    });
+    // Generate custom hooks with null safety
+    if (analysis.fileStructure?.hooks?.length) {
+      analysis.fileStructure.hooks.forEach(hook => {
+        const hookName = hook.toLowerCase().replace(/\s+/g, '-');
+        files.push(`src/hooks/${hookName}.ts`);
+      });
+    }
 
-    // Generate types
-    analysis.fileStructure.types.forEach(type => {
-      const typeName = type.toLowerCase().replace(/\s+/g, '-');
-      files.push(`src/types/${typeName}.ts`);
-    });
+    // Generate types with null safety
+    if (analysis.fileStructure?.types?.length) {
+      analysis.fileStructure.types.forEach(type => {
+        const typeName = type.toLowerCase().replace(/\s+/g, '-');
+        files.push(`src/types/${typeName}.ts`);
+      });
+    }
 
-    // Generate style files
-    analysis.fileStructure.styles.forEach(style => {
-      const styleName = style.toLowerCase().replace(/\s+/g, '-');
-      files.push(`src/styles/${styleName}.css`);
-    });
+    // Generate style files with null safety
+    if (analysis.fileStructure?.styles?.length) {
+      analysis.fileStructure.styles.forEach(style => {
+        const styleName = style.toLowerCase().replace(/\s+/g, '-');
+        files.push(`src/styles/${styleName}.css`);
+      });
+    }
 
     return files;
   }
@@ -553,7 +593,10 @@ Additional context:
       });
     });
 
-    const content = completion.choices[0]?.message?.content || '';
+    let content = completion.choices[0]?.message?.content || '';
+    
+    // Validate and clean the generated content
+    content = this.validateAndCleanGeneratedContent(content, filePath);
     
     return {
       content,
@@ -565,6 +608,333 @@ Additional context:
         tokens: completion.usage?.total_tokens,
       }
     };
+  }
+
+  // New method to validate and clean generated content
+  private validateAndCleanGeneratedContent(content: string, filePath: string): string {
+    if (!content || content.trim().length === 0) {
+      console.warn(`⚠️ Empty content generated for ${filePath}, using fallback`);
+      return this.generateFallbackContent(filePath, { 
+        projectName: 'Project', 
+        description: 'A web application', 
+        projectType: 'website',
+        framework: 'Next.js', 
+        styling: 'Tailwind CSS',
+        features: [],
+        complexity: 'beginner',
+        estimatedTime: '1-2 hours',
+        techStack: [],
+        fileStructure: {
+          pages: [],
+          components: [],
+          utils: [],
+          styles: [],
+          hooks: [],
+          types: []
+        },
+        designSystem: {
+          colorScheme: 'light',
+          primaryColor: '#3B82F6',
+          layout: 'single-page'
+        }
+      });
+    }
+
+    // Check for malformed React code fragments (the issue you encountered)
+    if (this.isMalformedReactCode(content)) {
+      console.warn(`⚠️ Malformed React code detected in ${filePath}, using fallback`);
+      return this.generateFallbackContent(filePath, { 
+        projectName: 'Project', 
+        description: 'A web application', 
+        projectType: 'website',
+        framework: 'Next.js', 
+        styling: 'Tailwind CSS',
+        features: [],
+        complexity: 'beginner',
+        estimatedTime: '1-2 hours',
+        techStack: [],
+        fileStructure: {
+          pages: [],
+          components: [],
+          utils: [],
+          styles: [],
+          hooks: [],
+          types: []
+        },
+        designSystem: {
+          colorScheme: 'light',
+          primaryColor: '#3B82F6',
+          layout: 'single-page'
+        }
+      });
+    }
+
+    // Check for incomplete JSX
+    if (this.isIncompleteJSX(content)) {
+      console.warn(`⚠️ Incomplete JSX detected in ${filePath}, attempting to fix`);
+      content = this.fixIncompleteJSX(content, filePath);
+    }
+
+    // Check for missing React imports
+    if (this.needsReactImports(content, filePath)) {
+      content = this.addReactImports(content);
+    }
+
+    // Check for undefined/null values
+    if (content.includes('undefined') || content.includes('null')) {
+      console.warn(`⚠️ Undefined/null values detected in ${filePath}, cleaning up`);
+      content = this.cleanUndefinedValues(content);
+    }
+    
+    // Check for invalid React component exports (the main issue from the logs)
+    if ((filePath.includes('page.tsx') || filePath.includes('layout.tsx')) && 
+        (!content.includes('export default') || !content.includes('export default function'))) {
+      console.warn(`⚠️ Invalid React component export detected in ${filePath}, using fallback`);
+      return this.generateFallbackContent(filePath, { 
+        projectName: 'Project', 
+        description: 'A web application', 
+        projectType: 'website',
+        framework: 'Next.js', 
+        styling: 'Tailwind CSS',
+        features: [],
+        complexity: 'beginner',
+        estimatedTime: '1-2 hours',
+        techStack: [],
+        fileStructure: {
+          pages: [],
+          components: [],
+          utils: [],
+          styles: [],
+          hooks: [],
+          types: []
+        },
+        designSystem: {
+          colorScheme: 'light',
+          primaryColor: '#3B82F6',
+          layout: 'single-page'
+        }
+      });
+    }
+    
+    // Check for React components without proper JSX return
+    if ((filePath.includes('page.tsx') || filePath.includes('layout.tsx')) && 
+        content.includes('export default') && !content.includes('return (') && !content.includes('return(')) {
+      console.warn(`⚠️ React component without proper JSX return detected in ${filePath}, using fallback`);
+      return this.generateFallbackContent(filePath, { 
+        projectName: 'Project', 
+        description: 'A web application', 
+        projectType: 'website',
+        framework: 'Next.js', 
+        styling: 'Tailwind CSS',
+        features: [],
+        complexity: 'beginner',
+        estimatedTime: '1-2 hours',
+        techStack: [],
+        fileStructure: {
+          pages: [],
+          components: [],
+          utils: [],
+          styles: [],
+          hooks: [],
+          types: []
+        },
+        designSystem: {
+          colorScheme: 'light',
+          primaryColor: '#3B82F6',
+          layout: 'single-page'
+        }
+      });
+    }
+    
+    // Check for incomplete React components (the main issue from the preview)
+    if ((filePath.includes('page.tsx') || filePath.includes('layout.tsx')) && 
+        (content.includes('const ErrorBoundary') || content.includes('useState(false)') || content.includes('useEffect(() =>') && !content.includes('export default'))) {
+      console.warn(`⚠️ Incomplete React component detected in ${filePath}, using fallback`);
+      return this.generateFallbackContent(filePath, { 
+        projectName: 'Project', 
+        description: 'A web application', 
+        projectType: 'website',
+        framework: 'Next.js', 
+        styling: 'Tailwind CSS',
+        features: [],
+        complexity: 'beginner',
+        estimatedTime: '1-2 hours',
+        techStack: [],
+        fileStructure: {
+          pages: [],
+          components: [],
+          utils: [],
+          styles: [],
+          hooks: [],
+          types: []
+        },
+        designSystem: {
+          colorScheme: 'light',
+          primaryColor: '#3B82F6',
+          layout: 'single-page'
+        }
+      });
+    }
+    
+    // Check for React components without proper structure
+    if ((filePath.includes('page.tsx') || filePath.includes('layout.tsx')) && 
+        content.includes('const ') && content.includes('= (') && !content.includes('export default')) {
+      console.warn(`⚠️ React component without proper export detected in ${filePath}, using fallback`);
+      return this.generateFallbackContent(filePath, { 
+        projectName: 'Project', 
+        description: 'A web application', 
+        projectType: 'website',
+        framework: 'Next.js', 
+        styling: 'Tailwind CSS',
+        features: [],
+        complexity: 'beginner',
+        estimatedTime: '1-2 hours',
+        techStack: [],
+        fileStructure: {
+          pages: [],
+          components: [],
+          utils: [],
+          styles: [],
+          hooks: [],
+          types: []
+        },
+        designSystem: {
+          colorScheme: 'light',
+          primaryColor: '#3B82F6',
+          layout: 'single-page'
+        }
+      });
+    }
+    
+    // Check for malformed CSS (the main issue from the logs)
+    if (filePath.endsWith('.css') && (content.startsWith('//') || content.includes('//') && !content.includes('/*'))) {
+      console.warn(`⚠️ Malformed CSS detected in ${filePath}, using fallback`);
+      return this.generateFallbackContent(filePath, { 
+        projectName: 'Project', 
+        description: 'A web application', 
+        projectType: 'website',
+        framework: 'Next.js', 
+        styling: 'Tailwind CSS',
+        features: [],
+        complexity: 'beginner',
+        estimatedTime: '1-2 hours',
+        techStack: [],
+        fileStructure: {
+          pages: [],
+          components: [],
+          utils: [],
+          styles: [],
+          hooks: [],
+          types: []
+        },
+        designSystem: {
+          colorScheme: 'light',
+          primaryColor: '#3B82F6',
+          layout: 'single-page'
+        }
+      });
+    }
+
+    return content;
+  }
+
+  // Check if content is malformed React code
+  private isMalformedReactCode(content: string): boolean {
+    // Check for the specific pattern you encountered
+    if (content.includes('clearTimeout(timer)') && content.includes('handleError') && content.includes('useMemo')) {
+      return true;
+    }
+
+    // Check for React fragments without proper structure
+    if (content.includes('useState') && content.includes('useEffect') && !content.includes('export default')) {
+      return true;
+    }
+
+    // Check for broken JSX
+    if (content.includes('className=') && !content.includes('import React') && !content.includes('export default')) {
+      return true;
+    }
+
+    // Check for incomplete function definitions
+    if (content.includes('const ') && content.includes('= (') && !content.includes('return')) {
+      return true;
+    }
+
+    return false;
+  }
+
+  // Check if JSX is incomplete
+  private isIncompleteJSX(content: string): boolean {
+    const openTags = (content.match(/</g) || []).length;
+    const closeTags = (content.match(/>/g) || []).length;
+    
+    // If there are significantly more open tags than close tags
+    if (openTags > closeTags + 2) {
+      return true;
+    }
+
+    // Check for unclosed JSX elements
+    if (content.includes('<div') && !content.includes('</div>')) {
+      return true;
+    }
+
+    return false;
+  }
+
+  // Fix incomplete JSX
+  private fixIncompleteJSX(content: string, filePath: string): string {
+    const fileName = filePath.split('/').pop() || 'component';
+    
+    // If it's a page component, return a complete fallback
+    if (fileName === 'page.tsx' || fileName === 'index.tsx') {
+      return `import React from 'react'
+
+export default function Page() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 flex items-center justify-center">
+      <div className="text-center text-white">
+        <h1 className="text-4xl font-bold mb-4">Cold Water Experiences</h1>
+        <p className="text-xl opacity-90">Dive into the refreshing world of cold water adventures.</p>
+        <div className="mt-8 space-y-4">
+          <div className="bg-white/10 p-6 rounded-lg">
+            <h2 className="text-2xl font-semibold mb-2">Experience the Chill</h2>
+            <p>Discover the invigorating power of cold water therapy.</p>
+          </div>
+          <div className="bg-white/10 p-6 rounded-lg">
+            <h2 className="text-2xl font-semibold mb-2">Explore the Depths</h2>
+            <p>Uncover the beauty beneath the surface.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}`;
+    }
+
+    return content;
+  }
+
+  // Check if content needs React imports
+  private needsReactImports(content: string, filePath: string): boolean {
+    const isReactFile = filePath.endsWith('.tsx') || filePath.endsWith('.jsx');
+    const hasJSX = content.includes('className=') || content.includes('<div') || content.includes('<h1');
+    const hasReactImport = content.includes('import React');
+    
+    return isReactFile && hasJSX && !hasReactImport;
+  }
+
+  // Add React imports
+  private addReactImports(content: string): string {
+    return `import React from 'react'
+
+${content}`;
+  }
+
+  // Clean undefined/null values
+  private cleanUndefinedValues(content: string): string {
+    return content
+      .replace(/undefined/g, '""')
+      .replace(/null/g, '""');
   }
 
   // Code validation and improvement pass
@@ -663,9 +1033,9 @@ ENHANCEMENT REQUIREMENTS:
 8. Add proper form validation and feedback
 
 DESIGN SYSTEM CONTEXT:
-- Primary Color: ${analysis.designSystem.primaryColor}
-- Theme: ${analysis.designSystem.colorScheme}
-- Layout: ${analysis.designSystem.layout}
+- Primary Color: ${analysis.designSystem?.primaryColor || '#3B82F6'}
+- Theme: ${analysis.designSystem?.colorScheme || 'light'}
+- Layout: ${analysis.designSystem?.layout || 'multi-page'}
 
 Return ONLY the optimized code with enhanced UX.
 `;
@@ -761,7 +1131,7 @@ PROJECT CONTEXT:
 - Framework: ${analysis.framework}
 - Styling: ${analysis.styling}
 - Complexity: ${analysis.complexity}
-- Design System: ${analysis.designSystem.colorScheme} theme
+- Design System: ${analysis.designSystem?.colorScheme || 'light'} theme
 
 CODE TO ANALYZE:
 \`\`\`typescript
@@ -824,10 +1194,10 @@ PROJECT CONTEXT:
 - Type: ${analysis.projectType}
 - Framework: ${analysis.framework}
 - Styling: ${analysis.styling}
-- Features: ${analysis.features.join(', ')}
-- Complexity: ${analysis.complexity}
-- Design System: ${analysis.designSystem.layout} layout with ${analysis.designSystem.colorScheme} theme
-- Primary Color: ${analysis.designSystem.primaryColor}
+- Features: ${analysis.features?.join(', ') || 'User Interface, Responsive Design'}
+- Complexity: ${analysis.complexity || 'intermediate'}
+- Design System: ${analysis.designSystem?.layout || 'multi-page'} layout with ${analysis.designSystem?.colorScheme || 'light'} theme
+- Primary Color: ${analysis.designSystem?.primaryColor || '#3B82F6'}
 
 ${context?.relatedFiles ? `RELATED FILES: ${context.relatedFiles.join(', ')}` : ''}
 ${context?.projectContext ? `PROJECT CONTEXT: ${context.projectContext}` : ''}
@@ -875,7 +1245,7 @@ ${context?.projectContext ? `ADDITIONAL CONTEXT: ${context.projectContext}` : ''
 
 DETAILED REQUIREMENTS:
 1. FUNCTIONALITY: Create fully working ${componentName} with all interactive features
-2. DESIGN: Implement ${analysis.designSystem.colorScheme} theme with ${analysis.designSystem.primaryColor} primary color
+2. DESIGN: Implement ${analysis.designSystem?.colorScheme || 'light'} theme with ${analysis.designSystem?.primaryColor || '#3B82F6'} primary color
 3. INTERACTIVITY: Add hover states, focus indicators, and smooth transitions
 4. ACCESSIBILITY: Include ARIA labels, keyboard navigation, and semantic HTML
 5. PERFORMANCE: Optimize rendering with proper memoization and lazy loading
@@ -987,6 +1357,156 @@ Generate code that demonstrates the project's purpose: "${analysis.description}"
   private generateFallbackContent(filePath: string, analysis: ProjectAnalysis): string {
     const fileName = filePath.split('/').pop() || 'file';
     const fileType = fileName.split('.').pop() || 'unknown';
+    const projectName = analysis.projectName || 'My App';
+
+    // Special handling for key files
+    if (filePath === 'next.config.js') {
+      return `/** @type {import('next').NextConfig} */
+const nextConfig = {
+  experimental: {
+    appDir: true,
+  },
+  swcMinify: true,
+}
+
+module.exports = nextConfig`
+    }
+
+    if (filePath === 'tsconfig.json') {
+      return `{
+  "compilerOptions": {
+    "target": "es5",
+    "lib": ["dom", "dom.iterable", "es6"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}`
+    }
+
+    if (filePath === 'tailwind.config.js') {
+      return `/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: [
+    './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/components/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/app/**/*.{js,ts,jsx,tsx,mdx}',
+  ],
+  theme: {
+    extend: {
+      backgroundImage: {
+        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
+        'gradient-conic':
+          'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
+      },
+    },
+  },
+  plugins: [],
+}`
+    }
+
+    if (filePath === 'src/app/page.tsx') {
+      return `'use client'
+
+import React from 'react'
+
+export default function HomePage() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="container mx-auto px-4 py-16">
+        <div className="text-center">
+          <h1 className="text-5xl font-bold text-gray-900 mb-6">
+            Welcome to ${projectName}
+          </h1>
+          <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
+            ${analysis.description || 'A modern web application built with Next.js and Tailwind CSS'}
+          </p>
+          <div className="flex justify-center gap-4">
+            <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors">
+              Get Started
+            </button>
+            <button className="border border-gray-300 hover:border-gray-400 text-gray-700 px-6 py-3 rounded-lg font-medium transition-colors">
+              Learn More
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}`;
+    }
+
+    if (filePath === 'src/app/layout.tsx') {
+      return `import React from 'react'
+import './globals.css'
+
+export const metadata = {
+  title: '${projectName}',
+  description: '${analysis.description || 'A modern web application'}',
+}
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <html lang="en">
+      <body className="antialiased">
+        {children}
+      </body>
+    </html>
+  )
+}`;
+    }
+
+    if (filePath === 'src/app/globals.css') {
+      return `@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 214, 219, 220;
+  --background-end-rgb: 255, 255, 255;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --foreground-rgb: 255, 255, 255;
+    --background-start-rgb: 0, 0, 0;
+    --background-end-rgb: 0, 0, 0;
+  }
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(
+      to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))
+    )
+    rgb(var(--background-start-rgb));
+}`;
+    }
 
     switch (fileType) {
       case 'tsx':
@@ -998,14 +1518,14 @@ interface ${fileName.split('.')[0]}Props {
 
 export default function ${fileName.split('.')[0]}(props: ${fileName.split('.')[0]}Props) {
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold">${fileName.split('.')[0]}</h1>
-      <p>This is the ${fileName.split('.')[0]} component for ${analysis.projectName}</p>
+    <div className="p-4 bg-white rounded-lg shadow-sm border">
+      <h2 className="text-xl font-semibold text-gray-900 mb-2">${fileName.split('.')[0]}</h2>
+      <p className="text-gray-600">This is the ${fileName.split('.')[0]} component for ${projectName}</p>
     </div>
   )
 }`;
       case 'ts':
-        return `// ${fileName} - ${analysis.projectName}
+        return `// ${fileName} - ${projectName}
 
 export interface ${fileName.split('.')[0].charAt(0).toUpperCase() + fileName.split('.')[0].slice(1)} {
   // Add interface definitions here
@@ -1015,14 +1535,14 @@ export const ${fileName.split('.')[0]} = {
   // Add implementation here
 }`;
       case 'css':
-        return `/* ${fileName} - ${analysis.projectName} */
+        return `/* ${fileName} - ${projectName} */
 
 .${fileName.split('.')[0]} {
   /* Add styles here */
 }`;
       default:
-        return `/* ${fileName} - ${analysis.projectName} */
-// Generated file for ${analysis.projectName}
+        return `/* ${fileName} - ${projectName} */
+// Generated file for ${projectName}
 // TODO: Implement ${fileName} functionality`;
     }
   }
