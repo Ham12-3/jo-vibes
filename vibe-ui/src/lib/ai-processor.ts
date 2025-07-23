@@ -416,6 +416,12 @@ Additional context:
       'src/app/loading.tsx',
       'src/app/error.tsx',
       'src/app/not-found.tsx',
+      'src/app/favicon.ico',
+      'src/app/icon.png',
+      'src/app/apple-icon.png',
+      'src/app/robots.txt',
+      'src/app/sitemap.ts',
+      'src/app/api/health/route.ts',
     );
 
     // Generate pages with null safety
@@ -1445,7 +1451,7 @@ Return JSON format:
     analysis: ProjectAnalysis, 
     context?: { relatedFiles?: string[], projectContext?: string }
   ): string {
-    return `You are an expert frontend developer and UI/UX designer with 10+ years of experience. You specialize in creating exceptional, production-ready user interfaces that are both beautiful and functional.
+    return `You are an expert frontend developer and UI/UX designer with 10+ years of experience specializing in modern Next.js 14+ applications. You create exceptional, production-ready user interfaces using the latest patterns and best practices.
 
 PROJECT CONTEXT:
 - Name: ${analysis.projectName}
@@ -1460,39 +1466,97 @@ PROJECT CONTEXT:
 ${context?.relatedFiles ? `RELATED FILES: ${context.relatedFiles.join(', ')}` : ''}
 ${context?.projectContext ? `PROJECT CONTEXT: ${context.projectContext}` : ''}
 
-CRITICAL REQUIREMENTS:
-1. VISUAL EXCELLENCE: Create stunning interfaces with modern design patterns
-2. FULL INTERACTIVITY: Every element must be fully functional with proper event handling
-3. ACCESSIBILITY FIRST: Implement WCAG 2.1 AA compliance with ARIA labels and keyboard navigation
-4. PERFORMANCE OPTIMIZED: Use React.memo, useMemo, and optimize rendering
-5. RESPONSIVE DESIGN: Mobile-first approach with all breakpoints
-6. ERROR HANDLING: Comprehensive error boundaries and user feedback
-7. TYPESCRIPT STRICT: Proper type definitions and type safety
-8. PRODUCTION READY: Code that can be deployed immediately
+CRITICAL NEXT.JS 14+ REQUIREMENTS:
+1. USE APP ROUTER: All pages must use the new App Router (/app directory)
+2. SERVER COMPONENTS: Use Server Components by default, Client Components only when needed
+3. METADATA API: Use the new metadata export for SEO and page information
+4. SUSPENSE: Implement proper loading states with Suspense boundaries
+5. ERROR BOUNDARIES: Use error.tsx for error handling
+6. TYPE SAFETY: Strict TypeScript with proper type definitions
+7. PERFORMANCE: Use Next.js Image, Link, and optimization features
+8. MODERN PATTERNS: Use latest React patterns (hooks, concurrent features)
 
 MODERN STANDARDS:
-- Use latest React patterns (hooks, concurrent features)
-- Implement proper state management and side effects
-- Add smooth animations and micro-interactions
-- Create reusable, composable components
-- Follow accessibility best practices
-- Optimize for Core Web Vitals
-- Include proper loading states and error handling
+- Next.js 14+ App Router architecture
+- Server Components for better performance
+- Client Components only when interactivity is needed
+- Proper metadata exports for SEO
+- Suspense boundaries for loading states
+- Error boundaries for error handling
+- TypeScript strict mode
+- Tailwind CSS with modern utilities
+- Accessibility-first design (WCAG 2.1 AA)
+- Responsive design with mobile-first approach
+- Performance optimization (Core Web Vitals)
 
-Generate ONLY the code, no explanations or markdown formatting.
+CRITICAL: Generate ONLY the code, no explanations or markdown formatting.
+
+CONFIGURATION FILES (next.config.js, tailwind.config.js, etc.):
+- Generate ONLY valid JavaScript/JSON code
+- NO explanations, comments, or markdown after the module.exports statement
+- NO additional text after the closing brace or semicolon
+- The file must end immediately after the module.exports statement
+- Use latest Next.js 14+ configuration options
 
 CRITICAL REACT COMPONENT REQUIREMENTS:
 For React components, you MUST follow this EXACT structure:
 
+SERVER COMPONENTS (default):
 \`\`\`tsx
-'use client'
-import React from 'react'
+import { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  title: 'Page Title',
+  description: 'Page description',
+}
 
 export default function ComponentName() {
   return (
     <div>
       {/* Your JSX content */}
     </div>
+  )
+}
+\`\`\`
+
+CLIENT COMPONENTS (only when needed):
+\`\`\`tsx
+'use client'
+import { useState } from 'react'
+
+export default function ComponentName() {
+  const [state, setState] = useState()
+  
+  return (
+    <div>
+      {/* Your JSX content */}
+    </div>
+  )
+}
+\`\`\`
+
+LAYOUT COMPONENTS:
+\`\`\`tsx
+import type { Metadata } from 'next'
+import { Inter } from 'next/font/google'
+import './globals.css'
+
+const inter = Inter({ subsets: ['latin'] })
+
+export const metadata: Metadata = {
+  title: 'App Title',
+  description: 'App description',
+}
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <html lang="en">
+      <body className={inter.className}>{children}</body>
+    </html>
   )
 }
 \`\`\`
@@ -1504,13 +1568,23 @@ NEVER generate:
 - Components with undefined or null values
 - Components with syntax errors
 - Components without proper structure
+- Explanations or markdown after code blocks
+- Old Pages Router patterns (/pages directory)
+- Missing metadata exports for pages
+- Missing error boundaries or loading states
 
 ALWAYS ensure:
 - Every React component has 'export default function ComponentName()'
 - Every component returns valid JSX
 - All JSX tags are properly closed
 - No syntax errors or malformed code
-- Proper TypeScript types and imports`;
+- Proper TypeScript types and imports
+- Configuration files end immediately after module.exports
+- Use Server Components by default
+- Add 'use client' only when client-side interactivity is needed
+- Include proper metadata exports for pages
+- Implement proper error handling with error.tsx
+- Use Suspense for loading states`;
   }
 
   // Build enhanced user prompt with specific requirements
@@ -1648,30 +1722,45 @@ Generate code that demonstrates the project's purpose: "${analysis.description}"
     const fileType = fileName.split('.').pop() || 'unknown';
     const projectName = analysis.projectName || 'My App';
 
-    // Special handling for key files
+    // Special handling for key files with latest Next.js 14+ patterns
     if (filePath === 'next.config.js') {
       return `/** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Enable App Router (default in Next.js 13+)
   experimental: {
-    appDir: true,
+    // Enable server actions
+    serverActions: true,
+    // Enable concurrent features
+    concurrentFeatures: true,
   },
+  // Enable SWC minification for faster builds
   swcMinify: true,
+  // Optimize images
+  images: {
+    formats: ['image/webp', 'image/avif'],
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+  },
+  // Enable compression
+  compress: true,
+  // Enable powered by header removal
+  poweredByHeader: false,
 }
 
-module.exports = nextConfig`
+module.exports = nextConfig;`
     }
 
     if (filePath === 'tsconfig.json') {
       return `{
   "compilerOptions": {
-    "target": "es5",
-    "lib": ["dom", "dom.iterable", "es6"],
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "ES2022"],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
     "esModuleInterop": true,
-    "module": "esnext",
+    "module": "ESNext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
@@ -1682,11 +1771,22 @@ module.exports = nextConfig`
         "name": "next"
       }
     ],
+    "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@/components/*": ["./src/components/*"],
+      "@/lib/*": ["./src/lib/*"],
+      "@/types/*": ["./src/types/*"],
+      "@/hooks/*": ["./src/hooks/*"],
+      "@/styles/*": ["./src/styles/*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
   "exclude": ["node_modules"]
 }`
     }
@@ -1701,117 +1801,94 @@ module.exports = {
   ],
   theme: {
     extend: {
+      colors: {
+        primary: {
+          50: '#eff6ff',
+          100: '#dbeafe',
+          200: '#bfdbfe',
+          300: '#93c5fd',
+          400: '#60a5fa',
+          500: '#3b82f6',
+          600: '#2563eb',
+          700: '#1d4ed8',
+          800: '#1e40af',
+          900: '#1e3a8a',
+        },
+      },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'gradient-conic':
-          'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
+        'gradient-conic': 'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
+      },
+      animation: {
+        'fade-in': 'fadeIn 0.5s ease-in-out',
+        'slide-up': 'slideUp 0.3s ease-out',
+      },
+      keyframes: {
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        slideUp: {
+          '0%': { transform: 'translateY(10px)', opacity: '0' },
+          '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
       },
     },
   },
-  plugins: [],
+  plugins: [
+    require('@tailwindcss/forms'),
+    require('@tailwindcss/typography'),
+  ],
 }`
     }
 
-    if (filePath === 'src/app/page.tsx') {
-      return `'use client'
-
-import React, { useState } from 'react'
-
-export default function HomePage() {
-  const [isLoading, setIsLoading] = useState(false)
-
-  const handleGetStarted = () => {
-    setIsLoading(true)
-    // Simulate action
-    setTimeout(() => setIsLoading(false), 2000)
+    if (filePath === 'package.json') {
+      return `{
+  "name": "${analysis.projectName?.toLowerCase().replace(/\\s+/g, '-') || 'my-app'}",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "^14.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "tailwindcss": "^3.3.0",
+    "@tailwindcss/forms": "^0.5.0",
+    "@tailwindcss/typography": "^0.5.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "eslint": "^8.0.0",
+    "eslint-config-next": "^14.0.0",
+    "postcss": "^8.4.0",
+    "autoprefixer": "^10.4.0"
   }
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600">
-      {/* Header */}
-      <header className="text-center py-12 px-4">
-        <h1 className="text-5xl md:text-6xl font-bold text-white mb-6">
-          Welcome to ${projectName}
-        </h1>
-        <p className="text-xl md:text-2xl text-white/90 max-w-3xl mx-auto leading-relaxed">
-          ${analysis.description || 'A modern web application built with Next.js and Tailwind CSS'}
-        </p>
-      </header>
-
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-8 text-center">
-            <h2 className="text-3xl font-bold text-white mb-6">Get Started Today</h2>
-            <p className="text-white/80 mb-8 text-lg">
-              Experience the power of modern web development with our cutting-edge platform.
-            </p>
-            <div className="flex flex-col sm:flex-row justify-center gap-4">
-              <button 
-                onClick={handleGetStarted}
-                disabled={isLoading}
-                className={\`
-                  bg-blue-500 hover:bg-blue-600 text-white px-8 py-4 rounded-lg 
-                  font-medium transition-all duration-300 transform hover:scale-105
-                  focus:outline-none focus:ring-2 focus:ring-white/50
-                  \${isLoading ? 'opacity-50 cursor-not-allowed' : ''}
-                \`}
-                aria-label="Get Started"
-              >
-                {isLoading ? 'Loading...' : 'Get Started'}
-              </button>
-              <button 
-                className="border border-white/30 hover:border-white/50 text-white px-8 py-4 rounded-lg font-medium transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-white/50"
-                aria-label="Learn More"
-              >
-                Learn More
-              </button>
-            </div>
-          </div>
-
-          {/* Features Grid */}
-          <div className="grid md:grid-cols-3 gap-8 mt-16">
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 text-center text-white">
-              <div className="w-16 h-16 bg-green-400 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl">🚀</span>
-              </div>
-              <h3 className="text-xl font-semibold mb-3">Fast & Modern</h3>
-              <p className="text-white/80">Built with the latest technologies for optimal performance</p>
-            </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 text-center text-white">
-              <div className="w-16 h-16 bg-blue-400 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl">📱</span>
-              </div>
-              <h3 className="text-xl font-semibold mb-3">Responsive</h3>
-              <p className="text-white/80">Perfect experience on all devices and screen sizes</p>
-            </div>
-            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 text-center text-white">
-              <div className="w-16 h-16 bg-purple-400 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl">⚡</span>
-              </div>
-              <h3 className="text-xl font-semibold mb-3">Optimized</h3>
-              <p className="text-white/80">Optimized for speed, accessibility, and user experience</p>
-            </div>
-          </div>
-        </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="text-center py-8 text-white/70 mt-16">
-        <p className="text-lg">© 2024 ${projectName}. Built with ❤️</p>
-      </footer>
-    </div>
-  )
-}`;
+}`
     }
 
     if (filePath === 'src/app/layout.tsx') {
-      return `import React from 'react'
+      return `import type { Metadata } from 'next'
+import { Inter } from 'next/font/google'
 import './globals.css'
 
-export const metadata = {
+const inter = Inter({ subsets: ['latin'] })
+
+export const metadata: Metadata = {
   title: '${projectName}',
-  description: '${analysis.description || 'A modern web application'}',
+  description: '${analysis.description || 'A modern web application built with Next.js and Tailwind CSS'}',
+  keywords: ['next.js', 'react', 'typescript', 'tailwind'],
+  authors: [{ name: 'Your Name' }],
+  viewport: 'width=device-width, initial-scale=1',
+  robots: 'index, follow',
 }
 
 export default function RootLayout({
@@ -1820,13 +1897,47 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body className="antialiased">
+    <html lang="en" className="h-full">
+      <body className={\`\${inter.className} h-full\`}>
         {children}
       </body>
     </html>
   )
-}`;
+}`
+    }
+
+    if (filePath === 'src/app/page.tsx') {
+      return `import { Suspense } from 'react'
+import { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  title: '${projectName} - Home',
+  description: 'Welcome to ${projectName}',
+}
+
+export default function HomePage() {
+  return (
+    <main className="min-h-screen bg-gradient-to-br from-primary-600 via-primary-700 to-primary-800">
+      <div className="container mx-auto px-4 py-8">
+        <Suspense fallback={<div>Loading...</div>}>
+          <div className="text-center">
+            <h1 className="text-4xl md:text-6xl font-bold text-white mb-6 animate-fade-in">
+              Welcome to ${projectName}
+            </h1>
+            <p className="text-xl md:text-2xl text-white/90 max-w-3xl mx-auto leading-relaxed animate-slide-up">
+              ${analysis.description || 'A modern web application built with Next.js and Tailwind CSS'}
+            </p>
+            <div className="mt-8">
+              <button className="bg-white text-primary-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors duration-200">
+                Get Started
+              </button>
+            </div>
+          </div>
+        </Suspense>
+      </div>
+    </main>
+  )
+}`
     }
 
     if (filePath === 'src/app/globals.css') {
@@ -1834,99 +1945,289 @@ export default function RootLayout({
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 84% 4.9%;
   }
 }
 
-body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
-}`;
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors duration-200;
+  }
+  
+  .card {
+    @apply bg-white rounded-lg shadow-md p-6;
+  }
+}`
     }
 
-    switch (fileType) {
-      case 'tsx':
-        return `'use client'
-
-import React, { useState } from 'react'
-
-interface ${fileName.split('.')[0]}Props {
-  title?: string
-  description?: string
-}
-
-export default function ${fileName.split('.')[0]}({ 
-  title = '${fileName.split('.')[0]}', 
-  description = 'This is the ${fileName.split('.')[0]} component for ${projectName}'
-}: ${fileName.split('.')[0]}Props) {
-  const [isActive, setIsActive] = useState(false)
-
-  const handleClick = () => {
-    setIsActive(true)
-    setTimeout(() => setIsActive(false), 2000)
-  }
-
+    if (filePath === 'src/app/loading.tsx') {
+      return `export default function Loading() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 flex items-center justify-center p-4">
-      <div className="bg-white/10 backdrop-blur-sm rounded-xl p-8 text-center text-white max-w-md w-full">
-        <div className="w-16 h-16 bg-blue-400 rounded-full flex items-center justify-center mx-auto mb-6">
-          <span className="text-2xl">✨</span>
-        </div>
-        <h1 className="text-3xl font-bold mb-4">{title}</h1>
-        <p className="text-white/80 mb-8 leading-relaxed">{description}</p>
-        <button 
-          onClick={handleClick}
-          disabled={isActive}
-          className={\`
-            bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg 
-            font-medium transition-all duration-300 transform hover:scale-105
-            focus:outline-none focus:ring-2 focus:ring-white/50
-            \${isActive ? 'opacity-50 cursor-not-allowed' : ''}
-          \`}
-          aria-label="Interact with component"
-        >
-          {isActive ? 'Loading...' : 'Get Started'}
-        </button>
-      </div>
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-600"></div>
     </div>
   )
-}`;
-      case 'ts':
-        return `// ${fileName} - ${projectName}
-
-export interface ${fileName.split('.')[0].charAt(0).toUpperCase() + fileName.split('.')[0].slice(1)} {
-  // Add interface definitions here
-}
-
-export const ${fileName.split('.')[0]} = {
-  // Add implementation here
-}`;
-      case 'css':
-        return `/* ${fileName} - ${projectName} */
-
-.${fileName.split('.')[0]} {
-  /* Add styles here */
-}`;
-      default:
-        return `/* ${fileName} - ${projectName} */
-// Generated file for ${projectName}
-// TODO: Implement ${fileName} functionality`;
+}`
     }
+
+    if (filePath === 'src/app/error.tsx') {
+      return `'use client'
+
+import { useEffect } from 'react'
+
+export default function Error({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string }
+  reset: () => void
+}) {
+  useEffect(() => {
+    console.error(error)
+  }, [error])
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen">
+      <h2 className="text-2xl font-bold mb-4">Something went wrong!</h2>
+      <button
+        className="btn-primary"
+        onClick={() => reset()}
+      >
+        Try again
+      </button>
+    </div>
+  )
+}`
+    }
+
+    if (filePath === 'src/app/not-found.tsx') {
+      return `import Link from 'next/link'
+
+export default function NotFound() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen">
+      <h2 className="text-2xl font-bold mb-4">Not Found</h2>
+      <p className="text-gray-600 mb-4">Could not find requested resource</p>
+      <Link href="/" className="btn-primary">
+        Return Home
+      </Link>
+    </div>
+  )
+}`
+    }
+
+    if (filePath === 'src/app/sitemap.ts') {
+      return `import { MetadataRoute } from 'next'
+
+export default function sitemap(): MetadataRoute.Sitemap {
+  return [
+    {
+      url: 'https://yourdomain.com',
+      lastModified: new Date(),
+      changeFrequency: 'yearly',
+      priority: 1,
+    },
+    {
+      url: 'https://yourdomain.com/about',
+      lastModified: new Date(),
+      changeFrequency: 'monthly',
+      priority: 0.8,
+    },
+    {
+      url: 'https://yourdomain.com/contact',
+      lastModified: new Date(),
+      changeFrequency: 'yearly',
+      priority: 0.5,
+    },
+  ]
+}`
+    }
+
+    if (filePath === 'src/app/robots.txt') {
+      return `User-Agent: *
+Allow: /
+
+Sitemap: https://yourdomain.com/sitemap.xml`
+    }
+
+    if (filePath === 'postcss.config.js') {
+      return `module.exports = {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+}`
+    }
+
+    if (filePath === '.gitignore') {
+      return `# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files
+.env*.local
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db`
+    }
+
+    if (filePath === '.env.local.example') {
+      return `# Environment variables example
+# Copy this file to .env.local and fill in your values
+
+# Database
+DATABASE_URL="postgresql://username:password@localhost:5432/database"
+
+# Authentication
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="your-secret-key"
+
+# API Keys
+OPENAI_API_KEY="your-openai-api-key"
+
+# Other services
+NEXT_PUBLIC_APP_URL="http://localhost:3000"`
+    }
+
+    if (filePath === 'README.md') {
+      return `# ${projectName}
+
+${analysis.description || 'A modern web application built with Next.js and Tailwind CSS'}
+
+## Features
+
+- ⚡ Next.js 14 with App Router
+- 🎨 Tailwind CSS for styling
+- 🔧 TypeScript for type safety
+- 📱 Responsive design
+- ♿ Accessibility focused
+- 🚀 Optimized for performance
+
+## Getting Started
+
+First, install the dependencies:
+
+\`\`\`bash
+npm install
+\`\`\`
+
+Then, run the development server:
+
+\`\`\`bash
+npm run dev
+\`\`\`
+
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+## Project Structure
+
+\`\`\`
+src/
+├── app/                 # App Router pages
+│   ├── layout.tsx      # Root layout
+│   ├── page.tsx        # Home page
+│   ├── globals.css     # Global styles
+│   ├── loading.tsx     # Loading UI
+│   ├── error.tsx       # Error UI
+│   └── not-found.tsx   # 404 page
+├── components/         # Reusable components
+├── lib/               # Utility functions
+├── hooks/             # Custom React hooks
+├── types/             # TypeScript type definitions
+└── styles/            # Additional styles
+\`\`\`
+
+## Learn More
+
+To learn more about the technologies used:
+
+- [Next.js Documentation](https://nextjs.org/docs)
+- [React Documentation](https://react.dev)
+- [Tailwind CSS Documentation](https://tailwindcss.com/docs)
+- [TypeScript Documentation](https://www.typescriptlang.org/docs)
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme).
+`
+    }
+
+    if (filePath === 'src/app/api/health/route.ts') {
+      return `import { NextResponse } from 'next/server'
+
+export async function GET() {
+  return NextResponse.json(
+    { 
+      status: 'ok', 
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime()
+    },
+    { status: 200 }
+  )
+}`
+    }
+
+    // Default fallback for other files
+    return `// ${fileName} - ${fileType} file
+// Generated for ${projectName}
+
+// TODO: Implement ${fileName} functionality
+`;
   }
 }
 

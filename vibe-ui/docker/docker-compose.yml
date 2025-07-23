@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  # Sandbox manager service
+  sandbox-manager:
+    build: .
+    container_name: sandbox-manager
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=${DATABASE_URL}
+    volumes:
+      - ./sandboxes:/app/sandboxes
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - sandbox-network
+    restart: unless-stopped
+
+  # Redis for session management
+  redis:
+    image: redis:7-alpine
+    container_name: sandbox-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - sandbox-network
+    restart: unless-stopped
+
+networks:
+  sandbox-network:
+    driver: bridge
+
+volumes:
+  sandbox-data:
+    driver: local 

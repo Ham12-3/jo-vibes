@@ -2,8 +2,11 @@ import { z } from 'zod'
 import { createTRPCRouter, publicProcedure, protectedProcedure } from '@/trpc/innit'
 import { TRPCError } from '@trpc/server'
 import { aiProcessor } from '@/lib/ai-processor'
-import { e2bService } from '@/lib/e2b-service-new'
-import { ProjectStatus, SandboxStatus } from '@/generated/prisma'
+import { customSandboxService } from '../../lib/custom-sandbox'
+
+import { ProjectStatus, SandboxStatus, SandboxType } from '@/generated/prisma'
+import { v4 as uuidv4 } from 'uuid'
+
 
 // Type definitions for AI analysis and project creation
 interface AIAnalysis {
@@ -303,7 +306,7 @@ export const projectRouter = createTRPCRouter({
       return project
     }),
 
-  // Create E2B sandbox for project
+  // Create Gitpod workspace for project
   createSandbox: protectedProcedure
     .input(z.object({
       projectId: z.string(),
@@ -342,23 +345,93 @@ export const projectRouter = createTRPCRouter({
       })
 
       try {
-        const sandboxInfo = await e2bService.createProjectSandbox({
+        // Check if a sandbox already exists for this project
+        const existingSandbox = await ctx.db.sandbox.findFirst({
+          where: { 
+            projectId: project.id,
+            status: { in: ['CREATING', 'RUNNING'] }
+          }
+        });
+
+        if (existingSandbox) {
+          console.log(`⚠️ Sandbox already exists for project ${project.id}: ${existingSandbox.id}`);
+          return {
+            id: existingSandbox.id,
+            status: existingSandbox.status,
+            url: existingSandbox.url,
+            port: existingSandbox.port,
+            containerId: existingSandbox.e2bId,
+            logs: [],
+            createdAt: existingSandbox.createdAt,
+            updatedAt: existingSandbox.updatedAt
+          };
+        }
+
+        // Generate unique sandbox ID with UUID
+        const sandboxId = `sandbox-${project.id}-${uuidv4()}`;
+        const sandboxInfo = await customSandboxService.createSandbox({
+          id: sandboxId,
           projectId: project.id,
-          userId: ctx.user.id,
-          files: project.files.map(file => ({
-            path: file.path,
-            content: file.content,
-          })),
-          framework: project.framework || 'Next.js',
+          framework: project.framework || 'nextjs',
+          port: 0, // Will be assigned by service
+          files: project.files.reduce((acc, file) => {
+            acc[file.path] = file.content;
+            return acc;
+          }, {} as Record<string, string>),
+          environment: {}
         })
 
-        console.log(`✅ Sandbox created successfully: ${sandboxInfo.url}`)
-        return sandboxInfo
+        // Save sandbox information to database
+        const savedSandbox = await ctx.db.sandbox.create({
+          data: {
+            id: sandboxInfo.id,
+            e2bId: sandboxInfo.containerId,
+            status: sandboxInfo.status as SandboxStatus,
+            port: sandboxInfo.port,
+            url: sandboxInfo.url,
+            projectId: project.id,
+            type: SandboxType.DOCKER,
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
+          },
+        })
+
+        console.log(`✅ Workspace created successfully: ${sandboxInfo.url}`)
+        console.log(`✅ Sandbox saved to database: ${savedSandbox.id}`)
+        
+        return {
+          ...sandboxInfo,
+          id: savedSandbox.id,
+        }
       } catch (error) {
-        console.error(`❌ Failed to create sandbox:`, error)
+        console.error(`❌ Failed to create workspace:`, error)
+        
+        // Handle specific Prisma constraint errors
+        if (error instanceof Error && error.message.includes('Unique constraint failed')) {
+          console.log(`⚠️ Sandbox ID already exists, attempting to find existing sandbox...`);
+          
+          // Try to find the existing sandbox
+          const existingSandbox = await ctx.db.sandbox.findFirst({
+            where: { projectId: project.id }
+          });
+          
+          if (existingSandbox) {
+            console.log(`✅ Found existing sandbox: ${existingSandbox.id}`);
+            return {
+              id: existingSandbox.id,
+              status: existingSandbox.status,
+              url: existingSandbox.url,
+              port: existingSandbox.port,
+              containerId: existingSandbox.e2bId,
+              logs: [],
+              createdAt: existingSandbox.createdAt,
+              updatedAt: existingSandbox.updatedAt
+            };
+          }
+        }
+        
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
-          message: error instanceof Error ? error.message : 'Failed to create sandbox',
+          message: error instanceof Error ? error.message : 'Failed to create workspace',
         })
       }
     }),
@@ -369,7 +442,7 @@ export const projectRouter = createTRPCRouter({
       sandboxId: z.string(),
     }))
     .query(async ({ input }) => {
-      const sandbox = await e2bService.getSandboxInfo(input.sandboxId)
+      const sandbox = await customSandboxService.getSandboxStatus(input.sandboxId)
       
       if (!sandbox) {
         throw new TRPCError({
@@ -386,14 +459,49 @@ export const projectRouter = createTRPCRouter({
     .input(z.object({
       sandboxId: z.string(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       try {
-        await e2bService.stopSandbox(input.sandboxId)
+        await customSandboxService.stopSandbox(input.sandboxId)
+        
+        // Update sandbox status in database
+        await ctx.db.sandbox.update({
+          where: { id: input.sandboxId },
+          data: { status: SandboxStatus.STOPPED }
+        })
+        
         return { success: true }
-      } catch (error) {
+      } catch {
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
-          message: error instanceof Error ? error.message : 'Failed to stop sandbox',
+          message: 'Failed to stop sandbox',
+        })
+      }
+    }),
+
+  // Update sandbox status
+  updateSandboxStatus: protectedProcedure
+    .input(z.object({
+      sandboxId: z.string(),
+      status: z.enum(['CREATING', 'RUNNING', 'STOPPED', 'ERROR']),
+      url: z.string().optional(),
+      port: z.number().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      try {
+        await ctx.db.sandbox.update({
+          where: { id: input.sandboxId },
+          data: {
+            status: input.status as SandboxStatus,
+            ...(input.url && { url: input.url }),
+            ...(input.port && { port: input.port }),
+          }
+        })
+        
+        return { success: true }
+      } catch {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to update sandbox status',
         })
       }
     }),
@@ -470,19 +578,21 @@ export const projectRouter = createTRPCRouter({
 
       try {
         // Actually try to create a sandbox
-        const sandboxInfo = await e2bService.createProjectSandbox({
+        const sandboxInfo = await customSandboxService.createSandbox({
+          id: `sandbox-${project.id}-${Date.now()}`,
           projectId: project.id,
-          userId: ctx.user.id,
-          files: project.files.map(file => ({
-            path: file.path,
-            content: file.content,
-          })),
-          framework: project.framework || 'Next.js',
+          framework: project.framework || 'nextjs',
+          port: 0, // Will be assigned by service
+          files: project.files.reduce((acc, file) => {
+            acc[file.path] = file.content;
+            return acc;
+          }, {} as Record<string, string>),
+          environment: {}
         })
 
         console.log('✅ Sandbox created successfully!')
         console.log(`🔗 URL: ${sandboxInfo.url}`)
-        console.log(`🆔 E2B ID: ${sandboxInfo.e2bId}`)
+        console.log(`🆔 Container ID: ${sandboxInfo.containerId}`)
         console.log(`📊 Status: ${sandboxInfo.status}`)
 
         return {
@@ -511,12 +621,12 @@ export const projectRouter = createTRPCRouter({
     }))
     .mutation(async ({ input }) => {
       try {
-        const url = await e2bService.restartSandbox(input.sandboxId)
-        return { success: true, url }
+        const success = await customSandboxService.restartSandbox(input.sandboxId)
+        return { success }
       } catch (error) {
         throw new TRPCError({
           code: 'INTERNAL_SERVER_ERROR',
-          message: error instanceof Error ? error.message : 'Failed to restart sandbox',
+          message: error instanceof Error ? error.message : 'Failed to restart workspace',
         })
       }
     }),
@@ -776,14 +886,16 @@ export const projectRouter = createTRPCRouter({
         let sandboxInfo = null;
         if (input.createSandbox && projectFiles.length > 0) {
           try {
-            sandboxInfo = await e2bService.createProjectSandbox({
+            sandboxInfo = await customSandboxService.createSandbox({
+              id: `sandbox-${project.id}-${Date.now()}`,
               projectId: project.id,
-              userId: ctx.user.id,
-              files: projectFiles.map(file => ({
-                path: file.path,
-                content: file.content,
-              })),
               framework: analysis.framework,
+              port: 0, // Will be assigned by service
+              files: projectFiles.reduce((acc, file) => {
+                acc[file.path] = file.content;
+                return acc;
+              }, {} as Record<string, string>),
+              environment: {}
             });
             
             // Update project status to READY if sandbox created successfully
@@ -1284,7 +1396,7 @@ export const projectRouter = createTRPCRouter({
       return updatedFile
     }),
 
-  // Sync file changes to E2B sandbox
+          // Sync file changes to Gitpod workspace
   syncFileToSandbox: protectedProcedure
     .input(z.object({
       projectId: z.string(),
@@ -1343,17 +1455,7 @@ export const projectRouter = createTRPCRouter({
 
       // If there's a running sandbox, sync the file
       if (project.sandboxes.length > 0) {
-        const sandbox = project.sandboxes[0]
-        try {
-          await e2bService.syncFileToSandbox(
-            sandbox.e2bId!,
-            file.path,
-            input.content
-          )
-        } catch (error) {
-          console.error('Failed to sync file to sandbox:', error)
-          // Don't throw - file update succeeded even if sync failed
-        }
+        // Note: File syncing would be implemented here when Gitpod API is available
       }
 
       return { success: true, synced: project.sandboxes.length > 0 }

@@ -193,7 +193,7 @@ export function FileEditor({ projectId, height = "600px" }: FileEditorProps) {
         content: fileContent,
       })
       
-      // Sync to E2B sandbox in parallel
+              // Sync to Gitpod workspace in parallel
       syncFileToSandbox.mutate({
         projectId,
         fileId: selectedFile.id,

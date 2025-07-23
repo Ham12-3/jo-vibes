@@ -118,7 +118,7 @@ model Message {
 
 model Sandbox {
   id          String        @id @default(cuid())
-  e2bId       String?       // E2B sandbox ID
+  e2bId       String?       // Gitpod workspace ID (legacy field name)
   status      SandboxStatus @default(CREATING)
   type        SandboxType   @default(NODE)
   port        Int?          // Port for preview

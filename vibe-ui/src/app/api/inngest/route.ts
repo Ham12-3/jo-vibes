@@ -1,12 +1,9 @@
 import { serve } from 'inngest/next'
-import { inngest } from '@/inngest/client'
-import { helloWorld, onVibeCreated, generateProjectFiles } from '@/inngest/functions'
+import { inngest } from '@/lib/inngest/client'
+import { enhancedJobs } from '@/lib/inngest/functions'
 
-// Add Inngest serverless functions here when created
-// eslint-disable-next-line @typescript-eslint/consistent-type-assertions
-const functions = [helloWorld, onVibeCreated, generateProjectFiles] as const
-
+// Create the Inngest handler with all our enhanced jobs
 export const { GET, POST, PUT } = serve({
   client: inngest,
-  functions,
+  functions: enhancedJobs,
 })

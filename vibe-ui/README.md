@@ -1,36 +1,97 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Vibe UI
 
-## Getting Started
+A modern web application with AI-powered project generation and sandbox environments.
 
-First, run the development server:
+## 🚀 Quick Start
+
+### Development
 
 ```bash
+# Install dependencies
+npm install
+
+# Start the development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The application will be available at:
+- **Main Application**: http://localhost:3001
+- **Sandbox Containers**: http://localhost:4000+ (dynamic ports)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Port Configuration
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Main App**: Port 3001 (to avoid conflicts with sandbox containers)
+- **Sandbox Containers**: Ports 4000-5000 (dynamically assigned)
+- **Database**: Default Prisma configuration
 
-## Learn More
+### Environment Setup
 
-To learn more about Next.js, take a look at the following resources:
+Create a `.env.local` file in the root directory:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```env
+# Main application
+PORT=3001
+NEXT_PUBLIC_APP_URL=http://localhost:3001
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# Sandbox configuration
+SANDBOX_PORT_START=4000
+SANDBOX_PORT_END=5000
 
-## Deploy on Vercel
+# Development
+NODE_ENV=development
+NEXT_TELEMETRY_DISABLED=1
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 🛠️ Features
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- AI-powered project generation
+- Docker-based sandbox environments
+- Real-time code editing
+- Project deployment
+- User authentication
+
+## 📁 Project Structure
+
+```
+vibe-ui/
+├── src/
+│   ├── app/           # Next.js app router
+│   ├── components/    # React components
+│   ├── lib/          # Utility libraries
+│   └── trpc/         # tRPC configuration
+├── sandboxes/        # Generated sandbox projects
+└── prisma/          # Database schema
+```
+
+## 🔧 Development
+
+### Available Scripts
+
+- `npm run dev` - Start development server on port 3001
+- `npm run build` - Build for production
+- `npm run start` - Start production server
+- `npm run lint` - Run ESLint
+- `npm run setup:sandbox` - Setup custom sandbox environment
+
+### Container Management
+
+The application includes Docker-based sandbox containers for isolated development environments:
+
+- Automatic port assignment (4000-5000 range)
+- Signal handling for graceful shutdowns
+- Health checks and monitoring
+- Cleanup utilities
+
+## 🐳 Docker Sandboxes
+
+Sandbox containers are automatically managed and provide:
+
+- Isolated development environments
+- Hot reloading
+- Port forwarding
+- Resource monitoring
+- Automatic cleanup
+
+## 📝 License
+
+This project is licensed under the MIT License.

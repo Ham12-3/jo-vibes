@@ -3,9 +3,11 @@ import { redirect } from 'next/navigation'
 import { LovablePromptBar } from '@/components/LovablePromptBar'
 import { ProjectDashboard } from '@/components/project-dashboard'
 import { DeploymentDashboard } from '@/components/deployment-dashboard'
+import { CustomSandboxManager } from '@/components/custom-sandbox-manager'
 import { UserButton } from '@clerk/nextjs'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Rocket, FolderOpen } from 'lucide-react'
+import { Rocket, FolderOpen, Container } from 'lucide-react'
+import { db } from '@/lib/db'
 
 export default async function DashboardPage() {
   const { userId } = await auth()
@@ -13,6 +15,17 @@ export default async function DashboardPage() {
   if (!userId) {
     redirect('/sign-in')
   }
+
+  // Fetch projects for the sandbox manager
+  const projects = await db.project.findMany({
+    where: { userId },
+    select: {
+      id: true,
+      name: true,
+      framework: true,
+      status: true
+    }
+  });
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -59,10 +72,14 @@ export default async function DashboardPage() {
           {/* Dashboard Tabs */}
           <div className="mt-12">
             <Tabs defaultValue="projects" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="projects" className="flex items-center gap-2">
                   <FolderOpen className="h-4 w-4" />
                   Projects
+                </TabsTrigger>
+                <TabsTrigger value="sandboxes" className="flex items-center gap-2">
+                  <Container className="h-4 w-4" />
+                  Sandboxes
                 </TabsTrigger>
                 <TabsTrigger value="deployments" className="flex items-center gap-2">
                   <Rocket className="h-4 w-4" />
@@ -72,6 +89,10 @@ export default async function DashboardPage() {
 
               <TabsContent value="projects" className="mt-6">
                 <ProjectDashboard />
+              </TabsContent>
+
+              <TabsContent value="sandboxes" className="mt-6">
+                <CustomSandboxManager projects={projects} />
               </TabsContent>
 
               <TabsContent value="deployments" className="mt-6">

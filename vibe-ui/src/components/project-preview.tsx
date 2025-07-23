@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Play, Square, RotateCcw, ExternalLink, Monitor, Code, Eye, Loader2, MessageCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -25,7 +25,7 @@ interface ProjectFile {
 
 interface Sandbox {
   id: string
-  e2bId: string | null
+  e2bId: string | null // Container ID (legacy field name)
   url: string | null
   status: 'CREATING' | 'RUNNING' | 'STOPPED' | 'ERROR'
   port: number | null
@@ -42,7 +42,7 @@ interface ProjectPreviewProps {
     description: string | null
     framework: string | null
     files: ProjectFile[]
-    sandboxes: Sandbox[]
+    sandboxes: Sandbox[] // Updated type name
   }
   className?: string
 }
@@ -50,15 +50,125 @@ interface ProjectPreviewProps {
 export function ProjectPreview({ project, className }: ProjectPreviewProps) {
   const [activeTab, setActiveTab] = useState('preview')
   const [isCreatingSandbox, setIsCreatingSandbox] = useState(false)
+  const [pollingSandboxId, setPollingSandboxId] = useState<string | null>(null)
+  const [pollingAttempts, setPollingAttempts] = useState(0)
+  const [startupTime, setStartupTime] = useState(0)
+  const [isForceRestarting, setIsForceRestarting] = useState(false)
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const startTimeRef = useRef<number>(0)
 
   const activeSandbox = project.sandboxes.find(s => s.status === 'RUNNING') || project.sandboxes[0]
 
+  // Polling function to check sandbox status
+  const pollSandboxStatus = async (sandboxId: string) => {
+    try {
+      const response = await fetch(`/api/sandbox/status/${sandboxId}`)
+      if (response.ok) {
+        const data = await response.json()
+        
+        // Update startup time
+        if (data.timeSinceCreation) {
+          setStartupTime(data.timeSinceCreation)
+        }
+        
+        if (data.status === 'RUNNING') {
+          // Sandbox is ready, stop polling and refresh page
+          setPollingSandboxId(null)
+          setPollingAttempts(0)
+          setStartupTime(0)
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current)
+            pollingIntervalRef.current = null
+          }
+          toast.success('🎉 Sandbox is ready! Your app is now running.')
+          window.location.reload()
+        } else if (data.status === 'ERROR') {
+          // Sandbox failed to start
+          setPollingSandboxId(null)
+          setPollingAttempts(0)
+          setStartupTime(0)
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current)
+            pollingIntervalRef.current = null
+          }
+          toast.error('❌ Sandbox failed to start. Please try again.')
+        } else {
+          // Still creating, increment attempts
+          setPollingAttempts(prev => prev + 1)
+          
+          // Show progress updates every 30 seconds (10 attempts at 3-second intervals)
+          if (pollingAttempts % 10 === 0 && pollingAttempts > 0) {
+            const minutes = Math.floor(startupTime / 60)
+            const seconds = startupTime % 60
+            toast.info(`⏳ Sandbox is still starting up... (${minutes}m ${seconds}s)`)
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to poll sandbox status:', error)
+      setPollingAttempts(prev => prev + 1)
+    }
+  }
+
+  // Start polling when a sandbox is in CREATING status
+  useEffect(() => {
+    const creatingSandbox = project.sandboxes.find(s => s.status === 'CREATING')
+    
+    if (creatingSandbox && !pollingSandboxId) {
+      setPollingSandboxId(creatingSandbox.id)
+      setPollingAttempts(0)
+      setStartupTime(0)
+      startTimeRef.current = Date.now()
+      
+      // Poll every 3 seconds for up to 10 minutes (200 attempts)
+      pollingIntervalRef.current = setInterval(() => {
+        pollSandboxStatus(creatingSandbox.id)
+        
+        // Stop polling after 10 minutes (200 attempts)
+        if (pollingAttempts >= 200) {
+          setPollingSandboxId(null)
+          setPollingAttempts(0)
+          setStartupTime(0)
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current)
+            pollingIntervalRef.current = null
+          }
+          toast.error('⏰ Sandbox startup timeout. Please try again.')
+        }
+      }, 3000)
+    } else if (!creatingSandbox && pollingSandboxId) {
+      // Stop polling if no sandbox is creating
+      setPollingSandboxId(null)
+      setPollingAttempts(0)
+      setStartupTime(0)
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current)
+        pollingIntervalRef.current = null
+      }
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current)
+      }
+    }
+  }, [project.sandboxes, pollingSandboxId, pollingAttempts])
+
   const createSandbox = api.project.createSandbox.useMutation({
-    onSuccess: () => {
-      toast.success('🚀 Sandbox created! Your app is now running.')
+    onSuccess: (data) => {
+      toast.success('🚀 Sandbox created! Starting up... (this may take 2-4 minutes)')
       setIsCreatingSandbox(false)
-      // Refresh the project data
-      window.location.reload()
+      // Start polling for the new sandbox
+      if (data.status === 'CREATING') {
+        setPollingSandboxId(data.id)
+        setPollingAttempts(0)
+        setStartupTime(0)
+        startTimeRef.current = Date.now()
+        pollingIntervalRef.current = setInterval(() => {
+          pollSandboxStatus(data.id)
+        }, 3000)
+      }
     },
     onError: (error) => {
       toast.error(`Failed to create sandbox: ${error.message}`)
@@ -98,8 +208,28 @@ export function ProjectPreview({ project, className }: ProjectPreviewProps) {
   }
 
   const handleRestartSandbox = () => {
-    if (activeSandbox) {
-      restartSandbox.mutate({ sandboxId: activeSandbox.id })
+            restartSandbox.mutate({ sandboxId: activeSandbox?.e2bId || '' })
+  }
+
+  const handleForceRestart = async () => {
+    if (!activeSandbox) return
+    
+    setIsForceRestarting(true)
+    try {
+      const response = await fetch(`/api/sandbox/force-restart/${activeSandbox.id}`, {
+        method: 'POST'
+      })
+      
+      if (response.ok) {
+        toast.success('🔄 Sandbox force restarted! Creating new sandbox...')
+        window.location.reload()
+      } else {
+        toast.error('❌ Failed to force restart sandbox')
+      }
+    } catch {
+      toast.error('❌ Failed to force restart sandbox')
+    } finally {
+      setIsForceRestarting(false)
     }
   }
 
@@ -156,6 +286,9 @@ export function ProjectPreview({ project, className }: ProjectPreviewProps) {
                 <Badge className={getStatusColor(activeSandbox.status)}>
                   {getStatusIcon(activeSandbox.status)}
                   <span className="ml-1">{activeSandbox.status}</span>
+                  {activeSandbox.status === 'CREATING' && pollingSandboxId && (
+                    <span className="ml-1 text-xs">(checking...)</span>
+                  )}
                 </Badge>
               </div>
               
@@ -201,6 +334,32 @@ export function ProjectPreview({ project, className }: ProjectPreviewProps) {
                   <Play className="h-4 w-4 mr-1" />
                   Start
                 </Button>
+              )}
+              {activeSandbox?.status === 'CREATING' && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleStopSandbox}
+                    disabled={stopSandbox.isPending}
+                  >
+                    <Square className="h-4 w-4 mr-1" />
+                    Stop
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleForceRestart}
+                    disabled={isForceRestarting}
+                  >
+                    {isForceRestarting ? (
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    ) : (
+                      <RotateCcw className="h-4 w-4 mr-1" />
+                    )}
+                    Force Restart
+                  </Button>
+                </>
               )}
             </>
           ) : (
@@ -255,6 +414,11 @@ export function ProjectPreview({ project, className }: ProjectPreviewProps) {
                 {activeSandbox?.status === 'RUNNING' && activeSandbox.url && (
                   <Badge className="ml-auto bg-green-100 text-green-800">Live</Badge>
                 )}
+                {activeSandbox?.status === 'CREATING' && (
+                  <Badge className="ml-auto bg-yellow-100 text-yellow-800">
+                    Starting... {startupTime > 0 && `(${Math.floor(startupTime / 60)}m ${startupTime % 60}s)`}
+                  </Badge>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -287,18 +451,41 @@ export function ProjectPreview({ project, className }: ProjectPreviewProps) {
               ) : activeSandbox?.status === 'CREATING' ? (
                 <div className="flex flex-col items-center justify-center h-[400px] text-center">
                   <Loader2 className="h-12 w-12 text-blue-500 animate-spin mb-4" />
-                  <h3 className="text-lg font-medium">Creating Sandbox...</h3>
-                  <p className="text-gray-600">Setting up your development environment</p>
+                  <h3 className="text-lg font-medium">Starting Custom Sandbox...</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Creating a Docker container for your project
+                  </p>
+                  <div className="space-y-2 text-sm text-gray-600">
+                    <p>Custom sandboxes typically take 30-60 seconds to start up</p>
+                    <p>💡 <strong>What&apos;s happening:</strong> Docker is provisioning a secure container environment,
+                    installing dependencies, and starting your application server.</p>
+                    <p>🔒 <strong>Security:</strong> Your code runs in an isolated container with no access to your local system.</p>
+                    <p>⚡ <strong>Performance:</strong> Once started, your app will be available instantly for live preview.</p>
+                  </div>
+                  <div className="mt-6">
+                    <Button onClick={handleCreateSandbox} disabled={isCreatingSandbox}>
+                      {isCreatingSandbox ? (
+                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                      ) : (
+                        <Play className="h-4 w-4 mr-1" />
+                      )}
+                      Start a Custom Sandbox to see your project running live
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center h-[400px] text-center">
                   <Monitor className="h-12 w-12 text-gray-300 mb-4" />
                   <h3 className="text-lg font-medium">No Running Preview</h3>
                   <p className="text-gray-600 mb-4">
-                    Start a sandbox to see your project running live
+                    Start a Custom Sandbox to see your project running live
                   </p>
                   <Button onClick={handleCreateSandbox} disabled={isCreatingSandbox}>
-                    <Play className="h-4 w-4 mr-2" />
+                    {isCreatingSandbox ? (
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    ) : (
+                      <Play className="h-4 w-4 mr-1" />
+                    )}
                     Run Project
                   </Button>
                 </div>
@@ -349,19 +536,21 @@ export function ProjectPreview({ project, className }: ProjectPreviewProps) {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Eye className="h-5 w-5" />
-                Sandbox Logs
+                Custom Sandbox Logs
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="bg-black text-green-400 p-4 rounded-lg font-mono text-sm h-[400px] overflow-y-auto">
                 {activeSandbox ? (
                   <div className="space-y-1">
-                    <div>📦 Sandbox ID: {activeSandbox.e2bId}</div>
+                    <div>📦 Container ID: {activeSandbox.e2bId}</div>
                     <div>🚀 Status: {activeSandbox.status}</div>
                     <div>🌐 Port: {activeSandbox.port}</div>
                     {activeSandbox.url && <div>🔗 URL: {activeSandbox.url}</div>}
                     <div>⏰ Framework: {project.framework}</div>
                     <div>📁 Files: {project.files.length} files generated</div>
+                    <div>🕐 Created: {new Date(activeSandbox.createdAt).toLocaleString()}</div>
+                    <div>🔄 Updated: {new Date(activeSandbox.updatedAt).toLocaleString()}</div>
                     <div className="text-yellow-400 mt-2">
                       💡 Tip: Use the restart button to reload your application
                     </div>
