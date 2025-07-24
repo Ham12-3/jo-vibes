@@ -55,7 +55,52 @@ interface ProjectWithCounts {
 
 // Removed duplicate utility implementations – now imported from deterministic-skeleton
 
-// Removed inline helper – using centralised module
+
+This project was generated using Jo-Vibes AI. To get started:
+
+1. Install dependencies:
+   \`\`\`bash
+   npm install
+   \`\`\`
+
+2. Run the development server:
+   \`\`\`bash
+   npm run dev
+   \`\`\`
+
+3. Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+## Framework
+- **Framework**: ${analysis.framework}
+- **Styling**: ${analysis.styling}
+${analysis.database ? `- **Database**: ${analysis.database}` : ''}
+
+## Note
+This is a placeholder project structure. The AI-generated content will be available once the API quota is restored.
+`;
+
+    default:
+      // Ensure the component name is a valid identifier and starts with an alphabetic character.
+      const rawName = fileName.replace(/[^a-zA-Z0-9]/g, '')
+      const componentName = /^[A-Za-z]/.test(rawName) ? rawName : `Fallback${rawName}`
+
+      return `// ${fileName}
+// This file was generated as a fallback when AI generation was unavailable.
+// Content will be updated when the API is available again.
+
+import React from 'react';
+
+export default function ${componentName}() {
+  return (
+    <div>
+      <h1>${fileName}</h1>
+      <p>Placeholder content for ${fileName}</p>
+    </div>
+  );
+}`;
+  }
+}
+
 
 export const projectRouter = createTRPCRouter({
   // Get user projects
