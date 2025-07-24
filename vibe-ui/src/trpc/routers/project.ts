@@ -181,11 +181,17 @@ This is a placeholder project structure. The AI-generated content will be availa
 `;
 
     default:
+      // Ensure the component name is a valid identifier and starts with an alphabetic character.
+      const rawName = fileName.replace(/[^a-zA-Z0-9]/g, '')
+      const componentName = /^[A-Za-z]/.test(rawName) ? rawName : `Fallback${rawName}`
+
       return `// ${fileName}
 // This file was generated as a fallback when AI generation was unavailable.
 // Content will be updated when the API is available again.
 
-export default function ${fileName.replace(/[^a-zA-Z0-9]/g, '')}() {
+import React from 'react';
+
+export default function ${componentName}() {
   return (
     <div>
       <h1>${fileName}</h1>
