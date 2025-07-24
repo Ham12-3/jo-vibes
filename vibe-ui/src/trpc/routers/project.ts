@@ -196,6 +196,93 @@ export default function ${fileName.replace(/[^a-zA-Z0-9]/g, '')}() {
   }
 }
 
+// ------------------------------------------------------
+// STEP 1 HELPER: deterministic skeleton fallback
+// ------------------------------------------------------
+
+async function generateDeterministicProjectSkeleton(ctx: any, userPrompt: string) {
+  // Derive a safe project name
+  const safeName = userPrompt.slice(0, 50).replace(/[^a-zA-Z0-9\s]/g, '').trim() || 'My App';
+
+  // 1️⃣  Insert basic project record (BUILDING)
+  const project = await ctx.db.project.create({
+    data: {
+      name: safeName,
+      description: userPrompt,
+      framework: 'Next.js',
+      styling: 'Tailwind CSS',
+      initialPrompt: userPrompt,
+      template: 'web-app',
+      userId: ctx.user.id,
+      status: ProjectStatus.BUILDING,
+    },
+    include: {
+      _count: {
+        select: { files: true, chatSessions: true },
+      },
+    },
+  });
+
+  // 2️⃣  Minimal analysis object just for placeholder generation
+  const analysis: AIAnalysis = {
+    projectName: project.name,
+    description: project.description || '',
+    framework: 'Next.js',
+    styling: 'Tailwind CSS',
+    database: null,
+    projectType: 'blank',
+    features: [],
+    complexity: 'simple',
+    estimatedTime: '1-2 hours',
+    techStack: ['Next.js', 'React', 'TypeScript'],
+    architecture: 'monolithic',
+  };
+
+  // 3️⃣  Essential file paths (keep in sync with UI expectations)
+  const essentialFiles = [
+    'src/app/page.tsx',
+    'src/app/layout.tsx',
+    'src/app/globals.css',
+    'package.json',
+    'README.md',
+    'tsconfig.json',
+    'next.config.js',
+    'tailwind.config.js',
+  ];
+
+  // 4️⃣  Generate placeholder content & persist
+  const files: ProjectFile[] = essentialFiles.map((filePath) => ({
+    filename: filePath.split('/').pop() || 'file',
+    path: filePath,
+    content: createFallbackFileContent(filePath, analysis),
+    language: getLanguageFromPath(filePath),
+    projectId: project.id,
+  }));
+
+  if (files.length) {
+    await ctx.db.projectFile.createMany({ data: files });
+  }
+
+  // 5️⃣  Mark project READY so front-end shows success
+  const readyProject = await ctx.db.project.update({
+    where: { id: project.id },
+    data: { status: ProjectStatus.READY },
+    include: {
+      _count: { select: { files: true, chatSessions: true } },
+    },
+  });
+
+  return {
+    ...readyProject,
+    aiProcessed: false,
+    filesGenerated: files.length,
+    totalFiles: files.length,
+    sandboxCreated: false,
+    sandboxUrl: null,
+    error: 'AI processing failed – deterministic skeleton generated',
+  };
+}
+
 export const projectRouter = createTRPCRouter({
   // Get user projects
   getUserProjects: protectedProcedure
@@ -930,91 +1017,7 @@ export const projectRouter = createTRPCRouter({
         // call fails (mirrors Lovable's guarantee).
         // ------------------------------------------------------------------
 
-        // 1️⃣  Create the bare-bones project record first (if not already).
-        const fallbackProject = await ctx.db.project.create({
-          data: {
-            name: input.prompt.slice(0, 50).replace(/[^a-zA-Z0-9\s]/g, '').trim() || 'My App',
-            description: input.prompt,
-            framework: 'Next.js',
-            styling: 'Tailwind CSS',
-            initialPrompt: input.prompt,
-            template: 'web-app',
-            userId: ctx.user.id,
-            status: ProjectStatus.BUILDING,
-          },
-          include: {
-            _count: {
-              select: {
-                files: true,
-                chatSessions: true,
-              },
-            },
-          },
-        });
-
-        // 2️⃣  Deterministic analysis + essential file list
-        const fallbackAnalysis: AIAnalysis = {
-          projectName: fallbackProject.name,
-          description: fallbackProject.description || '',
-          framework: 'Next.js',
-          styling: 'Tailwind CSS',
-          database: null,
-          projectType: 'blank',
-          features: [],
-          complexity: 'simple',
-          estimatedTime: '1-2 hours',
-          techStack: ['Next.js', 'React', 'TypeScript'],
-          architecture: 'monolithic',
-        };
-
-        const essentialFiles = [
-          'src/app/page.tsx',
-          'src/app/layout.tsx',
-          'src/app/globals.css',
-          'package.json',
-          'README.md',
-          'tsconfig.json',
-          'next.config.js',
-          'tailwind.config.js',
-        ];
-
-        // 3️⃣  Generate deterministic content for each file (no AI calls)
-        const fallbackFiles: ProjectFile[] = essentialFiles.map((filePath) => {
-          const content = createFallbackFileContent(filePath, fallbackAnalysis);
-          return {
-            filename: filePath.split('/').pop() || 'file',
-            path: filePath,
-            content,
-            language: getLanguageFromPath(filePath),
-            projectId: fallbackProject.id,
-          };
-        });
-
-        // 4️⃣  Persist files in one batch
-        if (fallbackFiles.length > 0) {
-          await ctx.db.projectFile.createMany({ data: fallbackFiles });
-        }
-
-        // 5️⃣  Update status → READY so front-end treats it the same
-        const readyProject = await ctx.db.project.update({
-          where: { id: fallbackProject.id },
-          data: { status: ProjectStatus.READY },
-          include: {
-            _count: {
-              select: { files: true, chatSessions: true },
-            },
-          },
-        });
-
-        return {
-          ...readyProject,
-          aiProcessed: false,
-          filesGenerated: fallbackFiles.length,
-          totalFiles: fallbackFiles.length,
-          sandboxCreated: false,
-          sandboxUrl: null,
-          error: error instanceof Error ? error.message : 'AI processing failed – fallback skeleton generated',
-        };
+        return await generateDeterministicProjectSkeleton(ctx, input.prompt);
       }
     }),
 
