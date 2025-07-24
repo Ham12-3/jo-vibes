@@ -389,7 +389,7 @@ module.exports = nextConfig`;
             // Clean TypeScript/JavaScript files from markdown contamination
             if (filename.endsWith('.ts') || filename.endsWith('.tsx') || filename.endsWith('.js') || filename.endsWith('.jsx')) {
               try {
-                let cleanedContent = content
+                const cleanedContent = content
                   // Remove ALL markdown code block delimiters (most important!)
                   .replace(/^```.*$/gm, '') // Remove any line that starts with ```
                   .replace(/^```.*$/gm, '') // Remove any line that starts with ```
