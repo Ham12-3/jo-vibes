@@ -817,13 +817,15 @@ export const projectRouter = createTRPCRouter({
             'tsconfig.json'
           ];
           
-          // Filter to only essential files or limit to 15 files max
+          // Filter to prioritize essential files first but do NOT truncate the list.
+          // This allows Lovable to generate the complete project structure as designed,
+          // while still ensuring we keep only relevant paths (pages/components/utils/etc.).
           fileStructure = fileStructure.filter(file => 
             essentialFiles.includes(file) || 
             file.includes('components/') ||
             file.includes('lib/') ||
             file.includes('utils/')
-          ).slice(0, 15);
+          );
           
         } catch (structureError) {
           console.error('File structure generation failed:', structureError);
