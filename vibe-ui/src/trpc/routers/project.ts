@@ -3,6 +3,7 @@ import { createTRPCRouter, publicProcedure, protectedProcedure } from '@/trpc/in
 import { TRPCError } from '@trpc/server'
 import { aiProcessor } from '@/lib/ai-processor'
 import { customSandboxService } from '../../lib/custom-sandbox'
+import { generateDeterministicProjectSkeleton, getLanguageFromPath, createFallbackFileContent } from '@/lib/deterministic-skeleton'
 
 import { ProjectStatus, SandboxStatus, SandboxType } from '@/generated/prisma'
 import { v4 as uuidv4 } from 'uuid'
@@ -52,149 +53,9 @@ interface ProjectWithCounts {
   }
 }
 
-// Helper function to determine file language
-function getLanguageFromPath(filePath: string): string {
-  const ext = filePath.split('.').pop();
-  switch (ext) {
-    case 'tsx':
-    case 'ts': return 'typescript';
-    case 'jsx':
-    case 'js': return 'javascript';
-    case 'css': return 'css';
-    case 'json': return 'json';
-    case 'md': return 'markdown';
-    case 'html': return 'html';
-    default: return 'text';
-  }
-}
+// Removed duplicate utility implementations – now imported from deterministic-skeleton
 
-// Helper function to create fallback file content when AI generation fails
-function createFallbackFileContent(filePath: string, analysis: { projectName: string; description: string; framework: string; styling: string; database?: string | null }): string {
-  const fileName = filePath.split('/').pop() || 'file';
-  
-  switch (fileName) {
-    case 'page.tsx':
-      return `import React from 'react';
-
-export default function Page() {
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-pink-600 flex items-center justify-center">
-      <div className="text-center text-white">
-        <h1 className="text-4xl font-bold mb-4">${analysis.projectName}</h1>
-        <p className="text-xl opacity-90">${analysis.description}</p>
-        <div className="mt-8">
-          <p className="text-sm opacity-75">
-            This is a placeholder page. Your AI-generated content will appear here once the API is available.
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}`;
-
-    case 'layout.tsx':
-      return `import type { Metadata } from 'next';
-import './globals.css';
-
-export const metadata: Metadata = {
-  title: '${analysis.projectName}',
-  description: '${analysis.description}',
-};
-
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <html lang="en">
-      <body>{children}</body>
-    </html>
-  );
-}`;
-
-    case 'globals.css':
-      return `@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-}`;
-
-    case 'package.json':
-      return JSON.stringify({
-        name: analysis.projectName.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-        version: '0.1.0',
-        private: true,
-        scripts: {
-          dev: 'next dev',
-          build: 'next build',
-          start: 'next start',
-          lint: 'next lint'
-        },
-        dependencies: {
-          'next': '^14.0.0',
-          'react': '^18.0.0',
-          'react-dom': '^18.0.0'
-        },
-        devDependencies: {
-          '@types/node': '^20.0.0',
-          '@types/react': '^18.0.0',
-          '@types/react-dom': '^18.0.0',
-          'typescript': '^5.0.0',
-          'tailwindcss': '^3.3.0',
-          'autoprefixer': '^10.4.0',
-          'postcss': '^8.4.0'
-        }
-      }, null, 2);
-
-    case 'README.md':
-      return `# ${analysis.projectName}
-
-${analysis.description}
-
-## Getting Started
-
-This project was generated using Jo-Vibes AI. To get started:
-
-1. Install dependencies:
-   \`\`\`bash
-   npm install
-   \`\`\`
-
-2. Run the development server:
-   \`\`\`bash
-   npm run dev
-   \`\`\`
-
-3. Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-## Framework
-- **Framework**: ${analysis.framework}
-- **Styling**: ${analysis.styling}
-${analysis.database ? `- **Database**: ${analysis.database}` : ''}
-
-## Note
-This is a placeholder project structure. The AI-generated content will be available once the API quota is restored.
-`;
-
-    default:
-      return `// ${fileName}
-// This file was generated as a fallback when AI generation was unavailable.
-// Content will be updated when the API is available again.
-
-export default function ${fileName.replace(/[^a-zA-Z0-9]/g, '')}() {
-  return (
-    <div>
-      <h1>${fileName}</h1>
-      <p>Placeholder content for ${fileName}</p>
-    </div>
-  );
-}`;
-  }
-}
+// Removed inline helper – using centralised module
 
 export const projectRouter = createTRPCRouter({
   // Get user projects
@@ -924,33 +785,13 @@ export const projectRouter = createTRPCRouter({
       } catch (error) {
         console.error('AI project creation failed:', error);
         
-        // Fallback to simple project creation
-        const fallbackProject = await ctx.db.project.create({
-          data: {
-            name: input.prompt.slice(0, 50).replace(/[^a-zA-Z0-9\s]/g, '').trim() || 'My App',
-            description: input.prompt,
-            framework: 'Next.js',
-            styling: 'Tailwind CSS',
-            initialPrompt: input.prompt,
-            template: 'web-app',
-            userId: ctx.user.id,
-            status: ProjectStatus.DRAFT,
-          },
-          include: {
-            _count: {
-              select: {
-                files: true,
-                chatSessions: true,
-              },
-            },
-          },
-        });
+        // ------------------------------------------------------------------
+        // COMPLETE FALLBACK – Generate a deterministic Next.js skeleton so the
+        // user still receives a compilable project even if every external AI
+        // call fails (mirrors Lovable's guarantee).
+        // ------------------------------------------------------------------
 
-        return {
-          ...fallbackProject,
-          aiProcessed: false,
-          error: error instanceof Error ? error.message : 'AI processing failed',
-        };
+        return await generateDeterministicProjectSkeleton(ctx, input.prompt);
       }
     }),
 
