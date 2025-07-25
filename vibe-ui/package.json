@@ -4,8 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack --port 3001",
+    "dev:setup": "npm run db:setup && npm run dev",
+    "start": "node scripts/start-dev.mjs",
+    "db:setup": "prisma generate && prisma db push",
+    "db:seed": "prisma db seed",
+    "db:reset": "prisma db push --force-reset && prisma db seed",
     "build": "next build",
-    "start": "next start",
+    "start:prod": "next start",
     "lint": "next lint",
     "setup:sandbox": "node scripts/setup-custom-sandbox.mjs"
   },

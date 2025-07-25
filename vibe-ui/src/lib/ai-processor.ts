@@ -691,6 +691,12 @@ Additional context:
       console.warn(`⚠️ Undefined/null values detected in ${filePath}, cleaning up`);
       content = this.cleanUndefinedValues(content);
     }
+
+    // Check for markdown contamination and clean it
+    if (this.hasMarkdownContamination(content)) {
+      console.warn(`⚠️ Markdown contamination detected in ${filePath}, cleaning up`);
+      content = this.cleanMarkdownContamination(content, filePath);
+    }
     
     // Check for invalid React component exports (the main issue from the logs)
     if ((filePath.includes('page.tsx') || filePath.includes('layout.tsx')) && 
@@ -1199,6 +1205,131 @@ ${content}`;
     return content
       .replace(/undefined/g, '""')
       .replace(/null/g, '""');
+  }
+
+  // Check for markdown contamination
+  private hasMarkdownContamination(content: string): boolean {
+    return content.includes('```') || 
+           content.includes('###') || 
+           content.includes('**') || 
+           content.includes('##') || 
+           content.includes('# ') ||
+           content.includes('|') ||
+           content.includes('---') ||
+           content.includes('<!--') ||
+           content.includes('-->');
+  }
+
+  // Clean markdown contamination
+  private cleanMarkdownContamination(content: string, filePath: string): string {
+    let cleanedContent = content;
+
+    // Remove markdown code blocks
+    cleanedContent = cleanedContent
+      .replace(/^```(typescript|javascript|css|scss|sass|ts|js|tsx|jsx|json|html|markdown)?\s*$/gm, '') // Remove opening code blocks
+      .replace(/^```\s*$/gm, '') // Remove closing code blocks
+      .replace(/^~~~(typescript|javascript|css|scss|sass|ts|js|tsx|jsx|json|html|markdown)?\s*$/gm, '') // Remove opening tildes
+      .replace(/^~~~\s*$/gm, ''); // Remove closing tildes
+
+    // Remove markdown headers
+    cleanedContent = cleanedContent
+      .replace(/^#{1,6}\s.*$/gm, '') // Remove headers (# ## ### etc)
+      .replace(/^#{1,6}\s*$/gm, ''); // Remove empty headers
+
+    // Remove markdown formatting
+    cleanedContent = cleanedContent
+      .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold
+      .replace(/\*(.*?)\*/g, '$1') // Remove italic
+      .replace(/`(.*?)`/g, '$1') // Remove inline code
+      .replace(/~~(.*?)~~/g, '$1'); // Remove strikethrough
+
+    // Remove markdown lists
+    cleanedContent = cleanedContent
+      .replace(/^\s*[-*+]\s.*$/gm, '') // Remove bullet lists
+      .replace(/^\s*\d+\.\s.*$/gm, ''); // Remove numbered lists
+
+    // Remove markdown tables
+    cleanedContent = cleanedContent
+      .replace(/^\|.*\|$/gm, '') // Remove table rows
+      .replace(/^\|.*$/gm, ''); // Remove partial table rows
+
+    // Remove HTML comments
+    cleanedContent = cleanedContent
+      .replace(/<!--[\s\S]*?-->/g, '') // Remove HTML comments
+      .replace(/^\s*<!--.*$/gm, '') // Remove HTML comment lines
+      .replace(/^\s*-->\s*$/gm, ''); // Remove closing HTML comment lines
+
+    // Remove horizontal rules
+    cleanedContent = cleanedContent
+      .replace(/^[-*_]{3,}\s*$/gm, ''); // Remove horizontal rules
+
+    // Remove markdown links and images
+    cleanedContent = cleanedContent
+      .replace(/!\[.*?\]\(.*?\)/g, '') // Remove images
+      .replace(/\[.*?\]\(.*?\)/g, ''); // Remove links
+
+    // Remove any remaining markdown patterns
+    cleanedContent = cleanedContent
+      .replace(/^\s*```.*$/gm, '') // Remove any remaining code block markers
+      .replace(/^\s*~~~.*$/gm, '') // Remove any remaining tilde markers
+      .replace(/^\s*[`~].*$/gm, ''); // Remove any remaining code markers
+
+    // Clean up whitespace
+    cleanedContent = cleanedContent
+      .replace(/\n\s*\n\s*\n/g, '\n\n') // Remove excessive blank lines
+      .trim();
+
+    // For CSS files, find the first valid CSS line
+    if (filePath.endsWith('.css')) {
+      const lines = cleanedContent.split('\n');
+      const firstValidLineIndex = lines.findIndex(line => {
+        const trimmed = line.trim();
+        return trimmed.startsWith('@') || 
+               trimmed.startsWith('*') || 
+               trimmed.startsWith('html') || 
+               trimmed.startsWith('body') || 
+               trimmed.startsWith('.') ||
+               trimmed.startsWith('#') ||
+               trimmed.startsWith('/*') ||
+               trimmed.startsWith('//') ||
+               trimmed.includes('{') ||
+               trimmed.includes('}') ||
+               trimmed.includes(':');
+      });
+      
+      if (firstValidLineIndex !== -1) {
+        cleanedContent = lines.slice(firstValidLineIndex).join('\n');
+      }
+    }
+
+    // For TypeScript/JavaScript files, find the first valid code line
+    if (filePath.endsWith('.ts') || filePath.endsWith('.tsx') || filePath.endsWith('.js') || filePath.endsWith('.jsx')) {
+      const lines = cleanedContent.split('\n');
+      const firstValidLineIndex = lines.findIndex(line => {
+        const trimmed = line.trim();
+        return trimmed.startsWith('import') || 
+               trimmed.startsWith('export') || 
+               trimmed.startsWith('const') || 
+               trimmed.startsWith('let') || 
+               trimmed.startsWith('var') ||
+               trimmed.startsWith('function') ||
+               trimmed.startsWith('class') ||
+               trimmed.startsWith('interface') ||
+               trimmed.startsWith('type') ||
+               trimmed.startsWith('//') ||
+               trimmed.startsWith('/*') ||
+               trimmed.includes('(') ||
+               trimmed.includes('{') ||
+               trimmed.includes('=');
+      });
+      
+      if (firstValidLineIndex !== -1) {
+        cleanedContent = lines.slice(firstValidLineIndex).join('\n');
+      }
+    }
+
+    console.log(`🔧 Cleaned markdown contamination from ${filePath}`);
+    return cleanedContent;
   }
 
   // Code validation and improvement pass

@@ -13,7 +13,8 @@ import {
   ChevronRight, 
   ChevronDown,
   RefreshCw,
-  Loader2
+  Loader2,
+  Sparkles
 } from 'lucide-react'
 import { api } from '@/trpc/client'
 import { useQueryClient } from '@tanstack/react-query'
@@ -69,6 +70,15 @@ export function FileEditor({ projectId, height = "600px" }: FileEditorProps) {
   // Get project files
   const { data: files, isLoading: filesLoading, refetch } = api.project.getProjectFiles.useQuery({
     projectId,
+  }, {
+    staleTime: 0, // Always fetch fresh data
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+  })
+
+  // Get project with sandboxes
+  const { data: project } = api.project.getProject.useQuery({
+    id: projectId,
   })
 
   // File operations
@@ -127,6 +137,60 @@ export function FileEditor({ projectId, height = "600px" }: FileEditorProps) {
     },
     onError: (error) => {
       toast.error(`Failed to rename file: ${error.message}`)
+    },
+  })
+
+  const cleanProjectFiles = api.project.cleanProjectFiles.useMutation({
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['project.getProjectFiles'] })
+      toast.success(`Cleaned ${data.cleanedFiles} files of markdown contamination`)
+    },
+    onError: (error) => {
+      toast.error(`Failed to clean files: ${error.message}`)
+    },
+  })
+
+  const aiAutoFixBuildErrors = api.project.aiAutoFixBuildErrors.useMutation({
+    onSuccess: (data) => {
+      const message = 'message' in data ? data.message : `AI applied ${data.fixesApplied} fixes to resolve build errors`
+      toast.success(message)
+      
+      // Show detailed results
+      if (data.results && data.results.length > 0) {
+        const successfulFixes = data.results.filter(r => r.success)
+        if (successfulFixes.length > 0) {
+          console.log('🔧 AI Fixes Applied:', successfulFixes.map(r => r.fix.description))
+        }
+      }
+      
+      // Refresh files after fixes
+      setTimeout(() => {
+        refetch()
+      }, 2000)
+    },
+    onError: (error) => {
+      toast.error(`Failed to auto-fix build errors: ${error.message}`)
+    },
+  })
+
+  // Sync files from sandbox
+  const syncSandboxFiles = api.project.syncSandboxFiles.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message || `Synced ${data.syncedCount} files from sandbox`)
+      refetch()
+    },
+    onError: (error) => {
+      toast.error(`Failed to sync files: ${error.message}`)
+    },
+  })
+
+  // Clean up port conflicts
+  const cleanupPortConflicts = api.project.cleanupPortConflicts.useMutation({
+    onSuccess: (data) => {
+      toast.success(data.message || `Cleaned up ${data.cleanedCount} containers`)
+    },
+    onError: (error) => {
+      toast.error(`Failed to clean up port conflicts: ${error.message}`)
     },
   })
 
@@ -209,6 +273,12 @@ export function FileEditor({ projectId, height = "600px" }: FileEditorProps) {
   // Update file tree when files change
   useEffect(() => {
     if (files) {
+      console.log('🔄 Files received from API:', files.length)
+      files.forEach((file, index) => {
+        console.log(`  ${index + 1}. ${file.path} (${file.content.length} chars)`)
+        console.log(`     Preview: ${file.content.substring(0, 100)}...`)
+      })
+      
       const tree = buildFileTree(files)
       setFileTree(tree)
     }
@@ -235,6 +305,10 @@ export function FileEditor({ projectId, height = "600px" }: FileEditorProps) {
 
   const handleFileSelect = (file: FileTreeItem) => {
     if (file.type === 'file') {
+      console.log('📁 Selected file:', file.path)
+      console.log('📄 File content length:', file.content?.length || 0)
+      console.log('📄 File content preview:', file.content?.substring(0, 200) || 'No content')
+      
       setSelectedFile(file)
       setFileContent(file.content || '')
       setHasUnsavedChanges(false)
@@ -377,9 +451,23 @@ export function FileEditor({ projectId, height = "600px" }: FileEditorProps) {
       {/* File Tree Sidebar */}
       <div className="w-1/3 bg-gray-50 border-r border-gray-200 flex flex-col">
         <div className="p-3 border-b border-gray-200 bg-white">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-gray-700">Files</h3>
-            <div className="flex items-center space-x-1">
+                      <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center space-x-2">
+                <h3 className="text-sm font-medium text-gray-700">Files</h3>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    // Navigate to Lovable interface
+                    window.location.href = `/project/${projectId}/lovable`
+                  }}
+                  className="text-xs"
+                >
+                  <Sparkles className="h-3 w-3 mr-1" />
+                  Lovable Mode
+                </Button>
+              </div>
+              <div className="flex items-center space-x-1">
               <Button
                 variant="ghost"
                 size="sm"
@@ -387,6 +475,81 @@ export function FileEditor({ projectId, height = "600px" }: FileEditorProps) {
                 disabled={filesLoading}
               >
                 <RefreshCw className={`h-4 w-4 ${filesLoading ? 'animate-spin' : ''}`} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => cleanProjectFiles.mutate({ projectId })}
+                disabled={cleanProjectFiles.isPending}
+                title="Clean markdown contamination from all files"
+              >
+                {cleanProjectFiles.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <span className="text-xs">🧹</span>
+                )}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  // Get the first sandbox ID for this project
+                  const firstSandbox = project?.sandboxes?.[0];
+                  if (firstSandbox?.id) {
+                    aiAutoFixBuildErrors.mutate({ projectId, sandboxId: firstSandbox.id });
+                  } else {
+                    toast.error('No sandbox found for this project');
+                  }
+                }}
+                disabled={aiAutoFixBuildErrors.isPending}
+                title="AI auto-fix build errors"
+              >
+                {aiAutoFixBuildErrors.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <span className="text-xs">🤖</span>
+                )}
+              </Button>
+              
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  // Get the first sandbox ID for this project
+                  const firstSandbox = project?.sandboxes?.[0];
+                  if (firstSandbox?.id) {
+                    syncSandboxFiles.mutate({ 
+                      projectId, 
+                      sandboxId: firstSandbox.id 
+                    });
+                  } else {
+                    toast.error('No sandbox found for this project');
+                  }
+                }}
+                disabled={syncSandboxFiles.isPending}
+                title="Sync files from sandbox to database"
+              >
+                {syncSandboxFiles.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <span className="text-xs">🔄</span>
+                )}
+              </Button>
+              
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  cleanupPortConflicts.mutate({ projectId });
+                }}
+                disabled={cleanupPortConflicts.isPending}
+                title="Clean up port conflicts and existing containers"
+              >
+                {cleanupPortConflicts.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <span className="text-xs">🧹</span>
+                )}
               </Button>
               <CreateFileDialog
                 onCreateFile={handleCreateFile}

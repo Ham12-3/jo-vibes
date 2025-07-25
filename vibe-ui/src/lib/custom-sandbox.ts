@@ -45,11 +45,34 @@ export class CustomSandboxService {
 
   private async getAvailablePort(): Promise<number> {
     let port = this.basePort;
-    while (this.usedPorts.has(port) || await this.isPortInUse(port)) {
+    const maxAttempts = 50; // Try more ports to find an available one
+    
+    while (port < this.basePort + maxAttempts) {
+      if (!this.usedPorts.has(port) && !(await this.isPortInUse(port))) {
+        this.usedPorts.add(port);
+        console.log(`✅ Found available port: ${port}`);
+        return port;
+      }
+      console.log(`⚠️ Port ${port} is in use, trying next port...`);
       port++;
     }
-    this.usedPorts.add(port);
-    return port;
+    
+    // If we can't find a port, try to clean up and find one
+    console.log('🔧 No ports available, attempting cleanup...');
+    await this.cleanupUnusedPorts();
+    
+    // Try again after cleanup
+    port = this.basePort;
+    while (port < this.basePort + maxAttempts) {
+      if (!this.usedPorts.has(port) && !(await this.isPortInUse(port))) {
+        this.usedPorts.add(port);
+        console.log(`✅ Found available port after cleanup: ${port}`);
+        return port;
+      }
+      port++;
+    }
+    
+    throw new Error(`No available ports found after trying ${maxAttempts} ports`);
   }
 
   private async isPortInUse(port: number): Promise<boolean> {
@@ -70,6 +93,78 @@ export class CustomSandboxService {
 
   private async releasePort(port: number) {
     this.usedPorts.delete(port);
+  }
+
+  private async cleanupUnusedPorts(): Promise<void> {
+    try {
+      console.log('🧹 Cleaning up unused ports...');
+      
+      // Get all running containers
+      const { execSync } = await import('child_process');
+      const containers = execSync('docker ps --format "{{.Names}}"', { encoding: 'utf8' })
+        .split('\n')
+        .filter(name => name.trim() && name.includes('sandbox-'));
+      
+      console.log(`Found ${containers.length} running sandbox containers`);
+      
+      // Check which ports are actually in use by running containers
+      const actuallyUsedPorts = new Set<number>();
+      
+      for (const containerName of containers) {
+        try {
+          const portInfo = execSync(`docker port ${containerName}`, { encoding: 'utf8' });
+          const portMatch = portInfo.match(/:(\d+)/);
+          if (portMatch) {
+            const port = parseInt(portMatch[1]);
+            actuallyUsedPorts.add(port);
+            console.log(`Container ${containerName} is using port ${port}`);
+          }
+        } catch (_error) {
+          console.log(`Could not get port info for ${containerName}`);
+        }
+      }
+      
+      // Release ports that are not actually in use
+      for (const port of this.usedPorts) {
+        if (!actuallyUsedPorts.has(port)) {
+          this.usedPorts.delete(port);
+          console.log(`Released port ${port} (not actually in use)`);
+        }
+      }
+      
+      console.log(`✅ Port cleanup complete. Available ports: ${Array.from(this.usedPorts).join(', ')}`);
+    } catch (error) {
+      console.error('Error during port cleanup:', error);
+    }
+  }
+
+  private async cleanupExistingContainer(containerName: string): Promise<void> {
+    try {
+      console.log(`🧹 Checking for existing container: ${containerName}`);
+      
+      const { execSync } = await import('child_process');
+      
+      // Check if container exists
+      try {
+        const _containerInfo = execSync(`docker inspect ${containerName}`, { encoding: 'utf8' });
+        console.log(`Found existing container: ${containerName}`);
+        
+        // Stop the container
+        console.log(`🛑 Stopping container: ${containerName}`);
+        execSync(`docker stop ${containerName}`, { stdio: 'ignore' });
+        
+        // Remove the container
+        console.log(`🗑️ Removing container: ${containerName}`);
+        execSync(`docker rm ${containerName}`, { stdio: 'ignore' });
+        
+        console.log(`✅ Successfully cleaned up existing container: ${containerName}`);
+      } catch (_inspectError) {
+        // Container doesn't exist, which is fine
+        console.log(`No existing container found: ${containerName}`);
+      }
+    } catch (error) {
+      console.error(`Error cleaning up existing container ${containerName}:`, error);
+    }
   }
 
   private async createDockerfile(framework: string, projectDir: string): Promise<string> {
@@ -345,6 +440,9 @@ module.exports = nextConfig`;
       const port = await this.getAvailablePort();
       console.log(`🔌 Using port: ${port}`);
 
+      // Clean up any existing containers with the same name
+      await this.cleanupExistingContainer(config.id);
+
       // Create Dockerfile
       console.log(`🐳 Creating Dockerfile for framework: ${config.framework}`);
       await this.createDockerfile(config.framework, projectDir);
@@ -360,11 +458,15 @@ module.exports = nextConfig`;
           await mkdir(dir, { recursive: true });
         }
         
-        // Fix package.json for Docker compatibility
+        // Fix package.json for Docker compatibility and ensure all dependencies
         let finalContent = content;
         if (filename === 'package.json') {
           try {
-            const packageJson = JSON.parse(content);
+            // First ensure all required dependencies are present
+            finalContent = await this.ensurePackageJsonDependencies(content, config.framework);
+            
+            // Then fix the dev script for Docker compatibility
+            const packageJson = JSON.parse(finalContent);
             console.log(`🔍 Original package.json dev script:`, packageJson.scripts?.dev);
             
             // Always override with the correct dev script for Docker
@@ -1068,6 +1170,11 @@ yarn-error.log*
       });
 
       console.log(`✅ Sandbox created successfully: ${url}`);
+      console.log(`📁 Sandbox files are in: ${projectDir}`);
+      console.log(`🔗 Live preview available at: ${url}`);
+      console.log(`🆔 Container ID: ${containerId}`);
+
+      console.log(`✅ Sandbox created successfully: ${url}`);
       return status;
 
     } catch (error) {
@@ -1536,6 +1643,45 @@ ${stats}
     } catch (error) {
       console.error(`❌ Error cleaning up sandbox ${sandboxId}:`, error);
       return false;
+    }
+  }
+
+  private async ensurePackageJsonDependencies(content: string, framework: string): Promise<string> {
+    try {
+      // Parse the existing package.json
+      const packageJson = JSON.parse(content);
+      
+      // Get the template with required dependencies
+      const template = this.getPackageJsonTemplate(framework);
+      
+      // Ensure all required dependencies are present
+      if (template.dependencies) {
+        packageJson.dependencies = {
+          ...template.dependencies,
+          ...packageJson.dependencies
+        };
+      }
+      
+      if (template.devDependencies) {
+        packageJson.devDependencies = {
+          ...template.devDependencies,
+          ...packageJson.devDependencies
+        };
+      }
+      
+      // Ensure scripts are present
+      if (template.scripts) {
+        packageJson.scripts = {
+          ...template.scripts,
+          ...packageJson.scripts
+        };
+      }
+      
+      console.log(`🔧 Ensured package.json has all required dependencies for ${framework}`);
+      return JSON.stringify(packageJson, null, 2);
+    } catch (error) {
+      console.warn(`⚠️ Failed to ensure package.json dependencies, using template:`, error);
+      return JSON.stringify(this.getPackageJsonTemplate(framework), null, 2);
     }
   }
 
